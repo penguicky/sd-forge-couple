@@ -50,24 +50,24 @@ if show_presets:
 def advanced_ui(
     is_img2img: bool, m: str, mode: gr.Radio
 ) -> tuple[gr.components.Component]:
-    with gr.Row(elem_classes="fc_mapping_btns"):
+    with gr.Row(elem_classes="fc_mapping_btns fc-lobe-protected"):
         gr.Button("Default Mapping", elem_classes="fc_reset_btn")
 
-    gr.HTML('<div class="fc_mapping"></div>')
+    gr.HTML('<div class="fc_mapping fc-lobe-protected"></div>')
 
     mapping = gr.JSON(value=DEFAULT_MAPPING, visible=False)
 
-    mapping_paste_field = gr.Textbox(visible=False, elem_classes="fc_paste_field")
+    mapping_paste_field = gr.Textbox(visible=False, elem_classes="fc_paste_field fc-lobe-protected")
     mapping_paste_field.change(
         on_entry, mapping_paste_field, mapping, show_progress="hidden"
     ).success(None, **js(f'() => {{ ForgeCouple.onPaste("{m}"); }}'))
 
-    mapping_entry_field = gr.Textbox(visible=False, elem_classes="fc_entry_field")
+    mapping_entry_field = gr.Textbox(visible=False, elem_classes="fc_entry_field fc-lobe-protected")
     mapping_entry_field.change(
         on_entry, mapping_entry_field, mapping, show_progress="hidden"
     ).success(None, **js(f'() => {{ ForgeCouple.preview("{m}"); }}'))
 
-    with gr.Group(elem_classes="fc_row_btns"):
+    with gr.Group(elem_classes="fc_row_btns fc-lobe-protected"):
         with gr.Row():
             with gr.Column():
                 ToolButton(
@@ -86,7 +86,7 @@ def advanced_ui(
                 tooltip="Delete the Selected Row",
             )
 
-    with gr.Column(elem_classes="fc_bg_btns"):
+    with gr.Column(elem_classes="fc_bg_btns fc-lobe-protected"):
         ToolButton(
             value="\U0001f4c2",
             elem_id="fc_load_img_btn",
@@ -108,7 +108,7 @@ def advanced_ui(
         value=Image.new("RGB", (1, 1), "black"),
         image_mode="RGBA",
         label="Mapping Preview",
-        elem_classes="fc_preview_img",
+        elem_classes="fc_preview_img fc-lobe-protected",
         type="pil",
         interactive=False,
         height=512,
@@ -125,13 +125,13 @@ def advanced_ui(
         max_lines=1,
         visible=False,
         interactive=True,
-        elem_classes="fc_preview_res",
+        elem_classes="fc_preview_res fc-lobe-protected",
     )
 
     preview_btn = gr.Button(
         visible=False,
         interactive=True,
-        elem_classes="fc_preview",
+        elem_classes="fc_preview fc-lobe-protected",
     )
 
     preview_btn.click(

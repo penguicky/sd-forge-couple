@@ -88,7 +88,7 @@ class CoupleMaskData:
 
         gr.HTML('<h2 align="center"><ins>Mask Layers</ins></h2>')
 
-        gr.HTML('<div class="fc_masks"></div>')
+        gr.HTML('<div class="fc_masks fc-lobe-protected"></div>')
 
         gr.HTML('<h2 align="center"><ins>Mask Preview</ins></h2>')
 
@@ -98,7 +98,7 @@ class CoupleMaskData:
             type="pil",
             interactive=False,
             show_download_button=False,
-            elem_classes="fc_msk_preview",
+            elem_classes="fc_msk_preview fc-lobe-protected",
         )
 
         msk_gallery = gr.Gallery(
@@ -107,7 +107,7 @@ class CoupleMaskData:
             show_download_button=False,
             interactive=False,
             visible=False,
-            elem_classes="fc_msk_gal",
+            elem_classes="fc_msk_gal fc-lobe-protected",
         )
 
         msk_btn_reset = gr.Button("Reset All Masks", elem_classes="round-btn")
@@ -117,7 +117,7 @@ class CoupleMaskData:
             elem_classes="round-btn",
         )
 
-        weights_field = gr.Textbox(visible=False, elem_classes="fc_msk_weights")
+        weights_field = gr.Textbox(visible=False, elem_classes="fc_msk_weights fc-lobe-protected")
 
         dummy = None if is_gradio_4 else gr.State()
 

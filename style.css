@@ -1,233 +1,374 @@
-#forge_couple_t2i, #forge_couple_i2i {
-    user-select: none;
+/* ===== LOBE-THEME COMPATIBILITY ===== */
+/* Core forge-couple elements that should always be visible */
+.fc-lobe-protected,
+#forge_couple_t2i,
+#forge_couple_i2i,
+#forge_couple_t2i .fc_mapping,
+#forge_couple_i2i .fc_mapping,
+#forge_couple_t2i .fc_preview_img,
+#forge_couple_i2i .fc_preview_img,
+#forge_couple_t2i .fc_bbox,
+#forge_couple_i2i .fc_bbox,
+#forge_couple_t2i .fc_mapping_btns,
+#forge_couple_i2i .fc_mapping_btns,
+#forge_couple_t2i .fc_bg_btns,
+#forge_couple_i2i .fc_bg_btns {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
-#forge_couple_t2i .fc-checkbox, #forge_couple_i2i .fc-checkbox {
-    min-width: unset !important;
+/* Mode-specific elements - only force visibility when not explicitly hidden */
+#forge_couple_t2i .fc_adv:not([style*="display: none"]),
+#forge_couple_i2i .fc_adv:not([style*="display: none"]),
+#forge_couple_t2i .fc_bsc:not([style*="display: none"]),
+#forge_couple_i2i .fc_bsc:not([style*="display: none"]),
+#forge_couple_t2i .fc_msk:not([style*="display: none"]),
+#forge_couple_i2i .fc_msk:not([style*="display: none"]) {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Ensure preview images have proper dimensions under lobe-theme */
+#forge_couple_t2i .fc_preview_img img,
+#forge_couple_i2i .fc_preview_img img {
+  min-width: 200px !important;
+  min-height: 200px !important;
+  display: block !important;
+}
+
+/* Ensure mapping tables are visible under lobe-theme */
+#forge_couple_t2i .fc_mapping tbody,
+#forge_couple_i2i .fc_mapping tbody {
+  display: table-row-group !important;
+  visibility: visible !important;
+}
+
+/* Ensure background control buttons are properly positioned */
+#forge_couple_t2i .fc_bg_btns,
+#forge_couple_i2i .fc_bg_btns {
+  position: absolute !important;
+  right: -50px !important;
+  top: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  z-index: 10 !important;
+}
+
+/* Ensure bounding box containers are properly positioned */
+#forge_couple_t2i .fc_bbox,
+#forge_couple_i2i .fc_bbox {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none !important;
+  z-index: 10 !important;
+}
+
+/* Bounding box styling */
+.fc_bounding_box {
+  position: absolute;
+  border: 2px solid #ff0000;
+  background-color: rgba(255, 0, 0, 0.1);
+  pointer-events: auto;
+  cursor: move;
+  min-width: 10px;
+  min-height: 10px;
+  box-sizing: border-box;
+}
+
+.fc_bounding_box:hover {
+  border-width: 3px;
+}
+
+/* Resize handles */
+.fc_resize_handle {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background-color: #fff;
+  border: 1px solid #000;
+  z-index: 11;
+}
+
+.fc_resize_handle:hover {
+  background-color: #007bff;
+}
+
+/* Mapping table styling */
+.fc_mapping_table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.fc_mapping_table th,
+.fc_mapping_table td {
+  border: 1px solid var(--border-color-primary);
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.fc_mapping_table th {
+  background-color: var(--background-fill-secondary);
+  font-weight: bold;
+}
+
+.fc_mapping_table tr {
+  cursor: pointer;
+}
+
+.fc_mapping_table tr:hover {
+  background-color: var(--background-fill-secondary);
+}
+
+.fc_mapping_table tr.selected {
+  background-color: var(--color-accent-soft);
+}
+
+.fc_mapping_table td[contenteditable="true"]:focus {
+  outline: 2px solid var(--color-accent);
+  background-color: var(--background-fill-primary);
+}
+
+/* ===== END LOBE-THEME COMPATIBILITY ===== */
+
+#forge_couple_t2i,
+#forge_couple_i2i {
+  user-select: none;
+}
+
+#forge_couple_t2i .fc-checkbox,
+#forge_couple_i2i .fc-checkbox {
+  min-width: unset !important;
 }
 
 .fc_bsc .fc_placeholder {
-    flex-grow: 2;
+  flex-grow: 2;
 }
 
 .fc_adv {
-    flex-direction: row;
-    justify-content: center;
+  flex-direction: row;
+  justify-content: center;
 }
 
-.fc_adv>div {
-    gap: 2em;
-    width: 100%;
+.fc_adv > div {
+  gap: 2em;
+  width: 100%;
 }
 
 .fc_adv .gradio-image {
-    width: 512px;
-    height: 512px;
-    margin: auto;
-    display: flex;
+  width: 512px;
+  height: 512px;
+  margin: auto;
+  display: flex;
 }
 
 .fc_adv .fc_preview_img {
-    overflow: visible !important;
+  overflow: visible !important;
 }
 
 .fc_adv .fc_preview_img .image-container {
-    display: flex;
+  display: flex;
 }
 
 .fc_adv .fc_preview_img img {
-    width: auto;
-    height: auto;
-    max-width: 100%;
-    max-height: 100%;
-    margin: auto !important;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  margin: auto !important;
 
-    background-image: none;
-    background-size: contain;
-    background-position: center;
-    background-color: black;
+  background-image: none;
+  background-size: contain;
+  background-position: center;
+  background-color: black;
 }
 
 .fc_adv .fc_bg_btns {
-    min-width: unset !important;
-    left: calc(100% + 4px);
-    position: absolute;
+  min-width: unset !important;
+  left: calc(100% + 4px);
+  position: absolute;
 }
 
 .fc_adv .style-rows {
-    align-items: end;
-    gap: 1em;
+  align-items: end;
+  gap: 1em;
 }
 
 .fc_adv .style-rows button {
-    border-radius: 0.5em;
+  border-radius: 0.5em;
 }
 
 .fc_bbox {
-    position: absolute;
-    opacity: 0.8;
-    pointer-events: none;
+  position: absolute;
+  opacity: 0.8;
+  pointer-events: none;
 }
 
 .fc_row_btns {
-    position: absolute;
-    z-index: 500;
-    right: 4px;
-    top: -1em;
+  position: absolute;
+  z-index: 500;
+  right: 4px;
+  top: -1em;
 }
 
 .fc_row_btns div {
-    width: auto !important;
-    min-width: unset !important;
+  width: auto !important;
+  min-width: unset !important;
 }
 
 .fc_row_btns button {
-    width: 2em !important;
-    height: 2em !important;
-    min-width: unset !important;
+  width: 2em !important;
+  height: 2em !important;
+  min-width: unset !important;
 }
 
 .fc_mapping {
-    display: flex;
-    flex-direction: column;
-    gap: 1em;
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
 
-    padding: 1em;
-    border-radius: 1em;
-    background: var(--panel-background-fill);
+  padding: 1em;
+  border-radius: 1em;
+  background: var(--panel-background-fill);
 }
 
 .fc_mapping table {
-    width: 100%;
-    margin: auto;
-    table-layout: fixed;
+  width: 100%;
+  margin: auto;
+  table-layout: fixed;
 }
 
 .fc_mapping :is(th, td) {
-    padding: 4px !important;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: clip;
-    border: 2px solid var(--table-border-color) !important;
+  padding: 4px !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+  border: 2px solid var(--table-border-color) !important;
 }
 
 .fc_mapping th {
-    text-align: center !important;
+  text-align: center !important;
 }
 
 .fc_mapping_btns {
-    display: flex;
-    flex-direction: column;
-    gap: 1em !important;
+  display: flex;
+  flex-direction: column;
+  gap: 1em !important;
 }
 
-.fc_mapping_btns>button {
-    border-radius: 0.5em !important;
-    margin: auto;
+.fc_mapping_btns > button {
+  border-radius: 0.5em !important;
+  margin: auto;
 }
 
 #forge_couple_t2i button.round-btn {
-    border-radius: 1em;
-    margin: 0.5em;
+  border-radius: 1em;
+  margin: 0.5em;
 }
 
 #forge_couple_i2i button.round-btn {
-    border-radius: 1em;
-    margin: 0.5em;
+  border-radius: 1em;
+  margin: 0.5em;
 }
 
 .fc_msk .gradio-image {
-    height: 512px;
-    margin: auto;
-    display: flex;
+  height: 512px;
+  margin: auto;
+  display: flex;
 }
 
 .fc_msk .gradio-image.fc_msk_canvas {
-    width: 100%;
+  width: 100%;
 }
 
 .fc_msk .gradio-image.fc_msk_preview {
-    width: 512px;
+  width: 512px;
 }
 
 .fc_msk .gradio-image div.empty {
-    margin: auto;
+  margin: auto;
 }
 
 .fc_msk .gradio-image img {
-    width: auto;
-    height: auto;
-    max-width: 100%;
-    max-height: 100%;
-    margin: auto !important;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  margin: auto !important;
 }
 
 .fc_msk .fc_mask_row {
-    display: flex;
-    position: relative;
-    flex-direction: row;
-    margin: 1em;
-    padding: 1em;
-    border-radius: 0.5em;
-    width: auto;
-    height: auto;
-    gap: 1em;
-    background: var(--border-color-accent);
+  display: flex;
+  position: relative;
+  flex-direction: row;
+  margin: 1em;
+  padding: 1em;
+  border-radius: 0.5em;
+  width: auto;
+  height: auto;
+  gap: 1em;
+  background: var(--border-color-accent);
 }
 
 .fc_msk .fc_mask_row.selected {
-    outline: 4px solid var(--button-primary-border-color);
+  outline: 4px solid var(--button-primary-border-color);
 }
 
 .fc_msk .fc_mask_row input {
-    margin: auto;
-    border-radius: 0.5em;
+  margin: auto;
+  border-radius: 0.5em;
 
-    border: var(--input-border-width) solid var(--input-border-color);
-    background: var(--input-background-fill);
-    color: var(--body-text-color);
-    font-weight: var(--input-text-weight);
-    font-size: var(--input-text-size);
+  border: var(--input-border-width) solid var(--input-border-color);
+  background: var(--input-background-fill);
+  color: var(--body-text-color);
+  font-weight: var(--input-text-weight);
+  font-size: var(--input-text-size);
 }
 
 .fc_msk .fc_mask_row img {
-    cursor: pointer;
+  cursor: pointer;
 }
 
 .fc_msk .fc_mask_row button:not(.del) {
-    position: absolute;
-    width: 30%;
-    left: 35%;
-    background: var(--input-background-fill);
-    border-radius: 0.5em;
-    font-weight: bold;
+  position: absolute;
+  width: 30%;
+  left: 35%;
+  background: var(--input-background-fill);
+  border-radius: 0.5em;
+  font-weight: bold;
 }
 
 .fc_msk .fc_mask_row button.up {
-    top: 8%;
+  top: 8%;
 }
 
 .fc_msk .fc_mask_row button.down {
-    bottom: 4%;
-    transform: rotate(180deg);
+  bottom: 4%;
+  transform: rotate(180deg);
 }
 
 .fc_msk .fc_mask_row button.del {
-    width: 10%;
-    background: var(--input-background-fill);
-    border-radius: 0.5em;
+  width: 10%;
+  background: var(--input-background-fill);
+  border-radius: 0.5em;
 }
 
 .fc_msk h2 {
-    margin-top: 1em !important;
+  margin-top: 1em !important;
 }
 
 .fc_msk div.fc_masks {
-    background: var(--panel-background-fill);
-    padding: 0.5em 0em;
-    border-radius: 2em;
+  background: var(--panel-background-fill);
+  padding: 0.5em 0em;
+  border-radius: 2em;
 }
 
 .fc_msk .fc_msk_uploads .gradio-image div.image-container {
-    margin: auto;
+  margin: auto;
 }
