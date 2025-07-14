@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Forge-Couple Auto-Sync Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; }
+        .log { background: #f5f5f5; padding: 10px; margin: 10px 0; font-family: monospace; }
+        button { margin: 5px; padding: 8px 16px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>Forge-Couple Auto-Sync Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Auto-Sync Functionality</h2>
+        <p>This test verifies that the auto-sync mechanism works correctly when regions are modified.</p>
+        
+        <button onclick="testAutoSync()">Test Auto-Sync</button>
+        <button onclick="testManualSync()">Test Manual Sync</button>
+        <button onclick="clearLog()">Clear Log</button>
+        
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            logDiv.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        function testAutoSync() {
+            log('Testing auto-sync functionality...', 'info');
+            
+            // Check if ShadowForgeCouple is available
+            if (typeof window.ShadowForgeCouple === 'undefined') {
+                log('ERROR: ShadowForgeCouple class not found', 'error');
+                return;
+            }
+
+            // Look for existing shadow DOM containers
+            const containers = document.querySelectorAll('shadow-forge-couple-container');
+            if (containers.length === 0) {
+                log('No shadow DOM containers found. Auto-sync test requires active forge-couple interface.', 'error');
+                return;
+            }
+
+            containers.forEach((container, index) => {
+                if (container.forgeCoupleInstance) {
+                    const instance = container.forgeCoupleInstance;
+                    log(`Testing container ${index + 1} (${instance.mode} mode)`, 'info');
+                    
+                    // Test auto-sync method exists
+                    if (typeof instance.autoSyncToBackend === 'function') {
+                        log('✓ autoSyncToBackend method found', 'success');
+                        
+                        // Test calling auto-sync
+                        try {
+                            instance.autoSyncToBackend();
+                            log('✓ autoSyncToBackend called successfully', 'success');
+                        } catch (error) {
+                            log(`✗ Error calling autoSyncToBackend: ${error.message}`, 'error');
+                        }
+                    } else {
+                        log('✗ autoSyncToBackend method not found', 'error');
+                    }
+                    
+                    // Test that regions exist
+                    if (instance.regions && instance.regions.length > 0) {
+                        log(`✓ Found ${instance.regions.length} regions`, 'success');
+                        
+                        // Test modifying a region to trigger auto-sync
+                        const originalX1 = instance.regions[0].x1;
+                        instance.regions[0].x1 = 0.123; // Modify coordinate
+                        instance.updateCanvas();
+                        instance.updateTable();
+                        
+                        log('✓ Modified region coordinates to trigger auto-sync', 'success');
+                        
+                        // Restore original value
+                        setTimeout(() => {
+                            instance.regions[0].x1 = originalX1;
+                            instance.updateCanvas();
+                            instance.updateTable();
+                            log('✓ Restored original coordinates', 'success');
+                        }, 1000);
+                        
+                    } else {
+                        log('No regions found to test with', 'error');
+                    }
+                } else {
+                    log(`Container ${index + 1} has no forgeCoupleInstance`, 'error');
+                }
+            });
+        }
+
+        function testManualSync() {
+            log('Testing manual sync (forceSyncToBackend)...', 'info');
+            
+            const containers = document.querySelectorAll('shadow-forge-couple-container');
+            if (containers.length === 0) {
+                log('No shadow DOM containers found', 'error');
+                return;
+            }
+
+            containers.forEach((container, index) => {
+                if (container.forgeCoupleInstance) {
+                    const instance = container.forgeCoupleInstance;
+                    log(`Testing manual sync for container ${index + 1}`, 'info');
+                    
+                    try {
+                        instance.forceSyncToBackend();
+                        log('✓ forceSyncToBackend called successfully', 'success');
+                    } catch (error) {
+                        log(`✗ Error calling forceSyncToBackend: ${error.message}`, 'error');
+                    }
+                }
+            });
+        }
+
+        // Auto-run basic checks on page load
+        window.addEventListener('load', () => {
+            log('Auto-sync test page loaded', 'info');
+            
+            // Check for required classes
+            if (typeof window.ShadowForgeCouple !== 'undefined') {
+                log('✓ ShadowForgeCouple class is available', 'success');
+            } else {
+                log('✗ ShadowForgeCouple class not found', 'error');
+            }
+            
+            // Check for shadow DOM containers
+            setTimeout(() => {
+                const containers = document.querySelectorAll('shadow-forge-couple-container');
+                log(`Found ${containers.length} shadow DOM containers`, containers.length > 0 ? 'success' : 'info');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

@@ -323,6 +323,7 @@
 
           this.updateCanvas();
           this.updateTable();
+          this.autoSyncToBackend(); // Auto-sync when prompts are synced from WebUI
 
           console.log(
             `[ShadowForgeCouple] Synced ${webUIPrompts.length} prompts from WebUI`
@@ -400,28 +401,14 @@
         if (button && !button._forgeCoupleHooked) {
           button._forgeCoupleHooked = true;
 
-          const originalClick = button.onclick;
-          button.onclick = (e) => {
-            console.log(
-              "[ShadowForgeCouple] Generation triggered - syncing to backend..."
-            );
-            this.forceSyncToBackend();
-
-            // Small delay to ensure sync completes before generation
-            setTimeout(() => {
-              if (originalClick) {
-                originalClick.call(button, e);
-              }
-            }, 100);
-          };
-
-          // Also hook addEventListener if used
+          // Use capture phase to ensure we run before other handlers
           button.addEventListener(
             "click",
             (e) => {
               console.log(
-                "[ShadowForgeCouple] Generation click detected - ensuring sync..."
+                "[ShadowForgeCouple] Generation click detected - forcing immediate sync..."
               );
+              // Force immediate sync without debouncing
               this.forceSyncToBackend();
             },
             { capture: true }
@@ -435,6 +422,39 @@
 
       // Also hook into form submissions and API calls
       this.hookFormSubmissions();
+
+      // Set up additional generation detection via MutationObserver
+      this.setupGenerationObserver();
+    }
+
+    setupGenerationObserver() {
+      // Watch for changes in the progress bar or generation status
+      // This catches generation events that might not trigger button clicks
+      const progressContainer = document.querySelector("#txt2img_results, #img2img_results");
+
+      if (progressContainer && !this.generationObserver) {
+        this.generationObserver = new MutationObserver((mutations) => {
+          mutations.forEach((mutation) => {
+            // Look for changes that indicate generation is starting
+            if (mutation.type === 'childList' || mutation.type === 'attributes') {
+              const progressBar = document.querySelector(".progress-bar, [data-testid='progress-bar']");
+              if (progressBar && progressBar.style.display !== 'none') {
+                console.log("[ShadowForgeCouple] Generation detected via progress bar - syncing...");
+                this.forceSyncToBackend();
+              }
+            }
+          });
+        });
+
+        this.generationObserver.observe(progressContainer, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['style', 'class']
+        });
+
+        console.log("[ShadowForgeCouple] Generation observer set up");
+      }
     }
 
     hookFormSubmissions() {
@@ -1047,16 +1067,6 @@
 
         // DISABLE prompt watcher temporarily to prevent feedback loop
         this.disablePromptWatcher = true;
-
-        // DON'T update the main prompt - this causes the regions to collapse
-        // Instead, just ensure we have the right number of regions
-        if (this.regions.length !== 3) {
-          console.log(
-            `[ShadowForgeCouple] Wrong region count: ${this.regions.length}, restoring to 3`
-          );
-          this.restoreOriginalRegions();
-        }
-
         // Also try to find and update any couples-specific textareas
         const accordion = document.querySelector(
           `#forge_couple_${this.mode === "t2i" ? "t2i" : "i2i"}`
@@ -1094,59 +1104,6 @@
         );
         this.disablePromptWatcher = false;
       }
-    }
-
-    restoreOriginalRegions() {
-      console.log("[ShadowForgeCouple] Restoring original 3 regions...");
-
-      // Clear existing regions
-      this.regions = [];
-      this.nextRegionId = 1;
-
-      // Restore the original 3 regions with correct coordinates
-      const originalRegions = [
-        {
-          id: 1,
-          x1: 0,
-          y1: 0,
-          x2: 1,
-          y2: 1,
-          weight: 1,
-          prompt:
-            "{quality: Masterpiece_Sd_HDA}, {setting: 2girls, castle}, {pose: french kiss}, {clothes: maid, short hair},",
-          color: "#FF6B6B",
-        },
-        {
-          id: 2,
-          x1: 0,
-          y1: 0,
-          x2: 0.5,
-          y2: 1,
-          weight: 2,
-          prompt:
-            "{quality}, {setting}, {pose}, {clothes}, Re_Zero_Rem_HDA, blue eye,",
-          color: "#4ECDC4",
-        },
-        {
-          id: 3,
-          x1: 0.5,
-          y1: 0,
-          x2: 1,
-          y2: 1,
-          weight: 2,
-          prompt: "{quality}, {setting}, {pose}, {clothes}, Re_Zero_Ram_HDA,",
-          color: "#45B7D1",
-        },
-      ];
-
-      this.regions = originalRegions;
-      this.nextRegionId = 4;
-
-      // Update the interface
-      this.updateCanvas();
-      this.updateTable();
-
-      console.log("[ShadowForgeCouple] Restored 3 regions successfully");
     }
 
     updateOriginalDataframe(mappingData) {
@@ -1450,6 +1407,7 @@
       this.updateCanvas();
       this.updateTable();
       this.selectRegion(region);
+      this.autoSyncToBackend(); // Auto-sync when region is added
 
       console.log(`[ShadowForgeCouple] Added region ${region.id}`);
     }
@@ -1466,6 +1424,7 @@
 
         this.updateCanvas();
         this.updateTable();
+        this.autoSyncToBackend(); // Auto-sync when region is deleted
 
         console.log(`[ShadowForgeCouple] Deleted region ${regionId}`);
       }
@@ -1483,6 +1442,7 @@
       this.nextRegionId = 1;
       this.updateCanvas();
       this.updateTable();
+      this.autoSyncToBackend(); // Auto-sync when all regions are cleared
 
       console.log(`[ShadowForgeCouple] Cleared all regions`);
     }
@@ -1763,6 +1723,7 @@
 
           this.selectRegion(region);
           this.updateTable();
+          this.autoSyncToBackend(); // Auto-sync when new region is created via drag
         }
       }
 
@@ -1811,6 +1772,7 @@
       region.y2 = newY1 + height;
 
       this.updateTableRow(region);
+      this.autoSyncToBackend(); // Auto-sync when region is moved via drag
     }
 
     handleResizeDrag(deltaX, deltaY) {
@@ -1843,6 +1805,7 @@
         );
 
       this.updateTableRow(region);
+      this.autoSyncToBackend(); // Auto-sync when region is resized via drag
     }
 
     getRegionAt(x, y) {
@@ -2172,6 +2135,7 @@
         }
 
         this.updateCanvas();
+        this.autoSyncToBackend(); // Auto-sync when table values change
       }
     }
 
@@ -2219,6 +2183,7 @@
       this.updateCanvas();
       this.updateTable();
       this.selectRegion(newRegion);
+      this.autoSyncToBackend(); // Auto-sync when region is added via action
 
       console.log(
         `[ShadowForgeCouple] Added region ${newRegion.id} ${position} region ${regionId}`
@@ -2227,38 +2192,34 @@
 
     // External API methods for integration
 
-    forceSyncToBackend() {
+    /**
+     * Automatically sync to backend when regions change
+     * Uses debouncing to prevent excessive sync calls
+     */
+    autoSyncToBackend() {
       // Only sync when in Advanced mode
       const currentMode = this.detectCurrentForgeCoupleMode();
       if (currentMode !== "Advanced") {
         return;
       }
 
-      // Apply default coordinates if needed
-      if (this.regions.length === 3) {
-        // Region 1: Full image (background)
-        this.regions[0].x1 = 0;
-        this.regions[0].y1 = 0;
-        this.regions[0].x2 = 1;
-        this.regions[0].y2 = 1;
-        this.regions[0].weight = 1;
+      // Clear any existing timeout
+      if (this.autoSyncTimeout) {
+        clearTimeout(this.autoSyncTimeout);
+      }
 
-        // Region 2: Left half
-        this.regions[1].x1 = 0;
-        this.regions[1].y1 = 0;
-        this.regions[1].x2 = 0.5;
-        this.regions[1].y2 = 1;
-        this.regions[1].weight = 2;
+      // Debounce sync calls to prevent spam during rapid changes
+      this.autoSyncTimeout = setTimeout(() => {
+        console.log("[ShadowForgeCouple] Auto-syncing to backend...");
+        this.syncToBackend();
+      }, 100); // 100ms debounce
+    }
 
-        // Region 3: Right half
-        this.regions[2].x1 = 0.5;
-        this.regions[2].y1 = 0;
-        this.regions[2].x2 = 1;
-        this.regions[2].y2 = 1;
-        this.regions[2].weight = 2;
-
-        this.updateCanvas();
-        this.updateTable();
+    forceSyncToBackend() {
+      // Only sync when in Advanced mode
+      const currentMode = this.detectCurrentForgeCoupleMode();
+      if (currentMode !== "Advanced") {
+        return;
       }
 
       this.lastRegionHash = ""; // Force sync
@@ -2881,42 +2842,6 @@
       this.monitorGenerationResults();
     }
 
-    monitorGenerationResults() {
-      // Simplified monitoring for Docker environments
-      // Only check for explicit forge-couple errors, not general generation success
-      const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-          if (mutation.type === "childList") {
-            // Only check for explicit forge-couple error messages
-            const errorElements = document.querySelectorAll(
-              '.error, .gr-error, [class*="error"]'
-            );
-            errorElements.forEach((element) => {
-              if (
-                element.textContent &&
-                (element.textContent.includes("ForgeCouple") ||
-                  element.textContent.includes("Number of Couples and Masks"))
-              ) {
-                console.log(
-                  "[ShadowForgeCouple] FOUND FORGE-COUPLE ERROR:",
-                  element.textContent
-                );
-              }
-            });
-          }
-        });
-      });
-
-      observer.observe(document.body, {
-        childList: true,
-        subtree: true,
-      });
-
-      console.log(
-        "[ShadowForgeCouple] Monitoring DOM for forge-couple specific errors"
-      );
-    }
-
     tryManualForgeCoupleInit() {
       console.log(
         "[ShadowForgeCouple] Attempting manual ForgeCouple initialization..."
@@ -3090,6 +3015,18 @@
       if (this.backendSyncInterval) {
         clearInterval(this.backendSyncInterval);
         this.backendSyncInterval = null;
+      }
+
+      // Clear auto-sync timeout
+      if (this.autoSyncTimeout) {
+        clearTimeout(this.autoSyncTimeout);
+        this.autoSyncTimeout = null;
+      }
+
+      // Disconnect generation observer
+      if (this.generationObserver) {
+        this.generationObserver.disconnect();
+        this.generationObserver = null;
       }
 
       this.resourceManager.cleanup();
