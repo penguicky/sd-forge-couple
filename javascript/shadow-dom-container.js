@@ -7,9 +7,6 @@
 
   // Guard against multiple loading
   if (window.ForgeCoupleAdvancedShadowContainer) {
-    console.log(
-      "[ForgeCoupleAdvancedShadowContainer] Already loaded, skipping"
-    );
     return;
   }
 
@@ -41,10 +38,6 @@
 
         // Set up communication bridges
         this.setupCommunicationBridges();
-
-        console.log(
-          `[ForgeCouple] Shadow DOM container initialized for ${this.mode}`
-        );
       } catch (error) {
         console.error(
           `[ForgeCouple] Failed to initialize shadow container:`,
@@ -515,65 +508,29 @@
       // Sync backend button (debug)
       const syncBackendBtn = shadowRoot.getElementById("sync-backend-btn");
       this.resourceManager.addEventListener(syncBackendBtn, "click", () => {
-        console.log("[ShadowDOMContainer] Manual backend sync triggered");
         this.forgeCoupleInstance.forceSyncToBackend();
 
         // Also log current state for debugging
         const regions = this.forgeCoupleInstance.getRegions();
-        console.log("[ShadowDOMContainer] Current regions:", regions);
 
         // Check if forge-couple components are found
         const accordion = document.querySelector(
           `#forge_couple_${this.mode === "t2i" ? "t2i" : "i2i"}`
         );
-        console.log(
-          "[ShadowDOMContainer] ForgeCouple accordion found:",
-          !!accordion
-        );
 
         if (accordion) {
           const inputs = accordion.querySelectorAll("input, textarea");
-          console.log(
-            "[ShadowDOMContainer] Found inputs/textareas in accordion:",
-            inputs.length
-          );
+
           inputs.forEach((input, i) => {
             const computedStyle = window.getComputedStyle(input);
-            console.log(
-              `  ${i}: ${input.tagName} class="${input.className}" type="${input.type}" ` +
-                `style="${input.style.cssText}" display="${computedStyle.display}" ` +
-                `value="${
-                  input.value ? input.value.substring(0, 50) + "..." : "empty"
-                }"`
-            );
           });
 
           // Show which components our sync logic found
-          console.log(
-            "[ShadowDOMContainer] Mapping component found:",
-            !!this.forgeCoupleInstance.mappingComponent
-          );
-          console.log(
-            "[ShadowDOMContainer] Entry field found:",
-            !!this.forgeCoupleInstance.entryField
-          );
 
           if (this.forgeCoupleInstance.mappingComponent) {
-            console.log("[ShadowDOMContainer] Mapping component details:", {
-              tagName: this.forgeCoupleInstance.mappingComponent.tagName,
-              type: this.forgeCoupleInstance.mappingComponent.type,
-              className: this.forgeCoupleInstance.mappingComponent.className,
-              id: this.forgeCoupleInstance.mappingComponent.id,
-            });
           }
 
           if (this.forgeCoupleInstance.entryField) {
-            console.log("[ShadowDOMContainer] Entry field details:", {
-              tagName: this.forgeCoupleInstance.entryField.tagName,
-              type: this.forgeCoupleInstance.entryField.type,
-              className: this.forgeCoupleInstance.entryField.className,
-              id: this.forgeCoupleInstance.entryField.id,
-            });
           }
         }
       });
@@ -667,17 +624,10 @@
       if (this.shadowRoot) {
         this.hostElement.removeChild(this.shadowRoot);
       }
-
-      console.log(
-        `[ForgeCouple] Shadow DOM container destroyed for ${this.mode}`
-      );
     }
   }
 
   // Expose class globally
   window.ForgeCoupleAdvancedShadowContainer =
     ForgeCoupleAdvancedShadowContainer;
-  console.log(
-    "[ForgeCoupleAdvancedShadowContainer] Class loaded and exposed globally"
-  );
 })();

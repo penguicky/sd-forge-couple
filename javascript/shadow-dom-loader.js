@@ -23,7 +23,7 @@
     for (let script of scripts) {
       if (script.src && script.src.includes("shadow-dom-loader.js")) {
         const path = script.src.substring(0, script.src.lastIndexOf("/") + 1);
-        console.log(`[ShadowDOMLoader] Detected script path: ${path}`);
+
         return path;
       }
     }
@@ -35,7 +35,6 @@
       "./extensions/sd-forge-couple/javascript/",
     ];
 
-    console.log("[ShadowDOMLoader] Using fallback path");
     return fallbacks[0];
   }
 
@@ -58,7 +57,6 @@
         document.querySelector(`script[src*="${src.split("/").pop()}"]`);
 
       if (existingScript) {
-        console.log(`[ShadowDOMLoader] Already loaded: ${src}`);
         resolve();
         return;
       }
@@ -71,17 +69,11 @@
         window.EventBridge &&
         window.BackendBridge
       ) {
-        console.log(
-          `[ShadowDOMLoader] Bundle classes already available: ${src}`
-        );
         resolve();
         return;
       }
 
       if (filename === "shadow-forge-couple.js" && window.ShadowForgeCouple) {
-        console.log(
-          `[ShadowDOMLoader] ShadowForgeCouple already available: ${src}`
-        );
         resolve();
         return;
       }
@@ -90,9 +82,6 @@
         filename === "shadow-dom-container.js" &&
         window.ForgeCoupleAdvancedShadowContainer
       ) {
-        console.log(
-          `[ShadowDOMLoader] ForgeCoupleAdvancedShadowContainer already available: ${src}`
-        );
         resolve();
         return;
       }
@@ -102,14 +91,9 @@
       script.async = true;
 
       script.onload = () => {
-        console.log(`[ShadowDOMLoader] Loaded: ${src}`);
-
         // Debug: Check what classes are available after loading
         const filename = src.split("/").pop();
         if (filename === "shadow-dom-bundle.js") {
-          console.log(
-            `[ShadowDOMLoader] After bundle load - ResourceManager: ${!!window.ResourceManager}, EventBridge: ${!!window.EventBridge}, BackendBridge: ${!!window.BackendBridge}`
-          );
         }
 
         resolve();
@@ -129,8 +113,6 @@
    * @returns {Promise} Promise that resolves when all scripts are loaded
    */
   async function loadAllScripts() {
-    console.log("[ShadowDOMLoader] Loading forge-couple Shadow DOM scripts...");
-
     try {
       // First load the bundle with core classes
       await loadScript(SCRIPT_BASE_PATH + BUNDLE_SCRIPT);
@@ -140,7 +122,6 @@
         await loadScript(SCRIPT_BASE_PATH + script);
       }
 
-      console.log("[ShadowDOMLoader] All scripts loaded successfully");
       return true;
     } catch (error) {
       console.error("[ShadowDOMLoader] Failed to load scripts:", error);
@@ -161,12 +142,9 @@
       "ForgeCoupleAdvancedShadowContainer",
     ];
 
-    console.log("[ShadowDOMLoader] Checking for required classes...");
-
     // Debug: Log what's available
     requiredClasses.forEach((className) => {
       const available = typeof window[className] !== "undefined";
-      console.log(`[ShadowDOMLoader] ${className}: ${available ? "✓" : "✗"}`);
     });
 
     const missingClasses = requiredClasses.filter(
@@ -197,8 +175,6 @@
 
     // Initialize backend bridge
     window.forgeCoupleBackendBridge = new BackendBridge();
-
-    console.log("[ShadowDOMLoader] Shadow DOM components initialized");
   }
 
   /**
@@ -297,14 +273,12 @@
 
       function checkLobeTheme() {
         if (isLobeThemeActive()) {
-          console.log("[ShadowDOMLoader] Lobe-theme detected");
           resolve(true);
           return;
         }
 
         // Check for timeout
         if (Date.now() - startTime > timeout) {
-          console.log("[ShadowDOMLoader] Timeout waiting for lobe-theme");
           resolve(false);
           return;
         }
@@ -403,10 +377,6 @@
 
         // Store reference for external access
         shadowHost.shadowContainer = shadowContainer;
-
-        console.log(
-          `[ShadowDOMLoader] Replaced ${mode} advanced mode with Shadow DOM`
-        );
       } catch (error) {
         console.error(
           `[ShadowDOMLoader] Failed to initialize ${mode} Shadow DOM:`,
@@ -447,8 +417,6 @@
       childList: true,
       subtree: true,
     });
-
-    console.log("[ShadowDOMLoader] Observers set up for dynamic content");
   }
 
   /**
@@ -465,21 +433,12 @@
 
     loadPromise = (async () => {
       try {
-        console.log("[ShadowDOMLoader] Starting initialization...");
-
         // Wait for lobe-theme to be fully loaded
         const lobeThemeActive = await waitForLobeTheme();
 
         if (!lobeThemeActive) {
-          console.log(
-            "[ShadowDOMLoader] Lobe-theme not detected, skipping Shadow DOM initialization"
-          );
           return false;
         }
-
-        console.log(
-          "[ShadowDOMLoader] Lobe-theme confirmed active, proceeding with Shadow DOM initialization"
-        );
 
         // Load all required scripts
         await loadAllScripts();
@@ -505,7 +464,6 @@
           lobeThemeActive: true,
         });
 
-        console.log("[ShadowDOMLoader] Shadow DOM initialization complete");
         return true;
       } catch (error) {
         console.error("[ShadowDOMLoader] Initialization failed:", error);
@@ -532,7 +490,6 @@
     window.addEventListener("load", () => {
       setTimeout(() => {
         if (!isLoaded) {
-          console.log("[ShadowDOMLoader] Fallback initialization attempt");
           initialize();
         }
       }, 3000);
@@ -550,9 +507,6 @@
       }
 
       if (isLobeThemeActive()) {
-        console.log(
-          "[ShadowDOMLoader] Periodic check detected lobe-theme, initializing"
-        );
         clearInterval(periodicCheck);
         initialize();
       }
@@ -563,6 +517,4 @@
 
   // Expose initialization function globally
   window.initializeForgeCoupleShawDOM = initialize;
-
-  console.log("[ShadowDOMLoader] Shadow DOM loader ready");
 })();

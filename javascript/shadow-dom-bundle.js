@@ -7,11 +7,8 @@
 
   // Check if already loaded
   if (window.ResourceManager && window.EventBridge && window.BackendBridge) {
-    console.log("[ShadowDOMBundle] Already loaded, skipping");
     return;
   }
-
-  console.log("[ShadowDOMBundle] Loading Shadow DOM components...");
 
   /**
    * Resource Manager for proper cleanup and memory management
@@ -109,7 +106,6 @@
       };
 
       if (this.debugMode) {
-        console.log(`[EventBridge] Emitting: ${eventType}`, eventData);
       }
 
       this.addToHistory(eventData);
@@ -136,7 +132,6 @@
     on(eventType, handler, options = {}) {
       const wrappedHandler = (event) => {
         if (this.debugMode) {
-          console.log(`[EventBridge] Received: ${eventType}`, event.detail);
         }
         handler(event);
       };
@@ -157,9 +152,6 @@
 
     setDebugMode(enabled) {
       this.debugMode = enabled;
-      console.log(
-        `[EventBridge] Debug mode ${enabled ? "enabled" : "disabled"}`
-      );
     }
   }
 
@@ -195,7 +187,6 @@
       };
 
       try {
-        console.log("[BackendBridge] Sending generation request:", requestData);
         const response = await this.makeRequest(
           "POST",
           this.apiEndpoint,
@@ -275,6 +266,4 @@
   window.ResourceManager = ResourceManager;
   window.EventBridge = EventBridge;
   window.BackendBridge = BackendBridge;
-
-  console.log("[ShadowDOMBundle] Core classes loaded");
 })();

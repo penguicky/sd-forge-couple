@@ -5,9 +5,6 @@
 
 // Guard: Don't load if bundle version is already available
 if (window.BackendBridge) {
-  console.log(
-    "[BackendBridge] Bundle version already loaded, skipping standalone version"
-  );
 } else {
   class BackendBridge {
     constructor() {
@@ -54,8 +51,6 @@ if (window.BackendBridge) {
       };
 
       try {
-        console.log("[BackendBridge] Sending generation request:", requestData);
-
         const response = await this.makeRequest(
           "POST",
           this.apiEndpoint,
@@ -185,10 +180,6 @@ if (window.BackendBridge) {
 
       for (let attempt = 1; attempt <= this.retryAttempts; attempt++) {
         try {
-          console.log(
-            `[BackendBridge] Request attempt ${attempt}/${this.retryAttempts}: ${method} ${url}`
-          );
-
           const response = await fetch(url, options);
 
           if (!response.ok) {
@@ -245,7 +236,6 @@ if (window.BackendBridge) {
         this.websocket = new WebSocket(wsUrl);
 
         this.websocket.onopen = () => {
-          console.log("[BackendBridge] WebSocket connected");
           this.eventBridge.emit("websocket:connected", {
             timestamp: Date.now(),
           });
@@ -264,11 +254,6 @@ if (window.BackendBridge) {
         };
 
         this.websocket.onclose = (event) => {
-          console.log(
-            "[BackendBridge] WebSocket disconnected:",
-            event.code,
-            event.reason
-          );
           this.eventBridge.emit("websocket:disconnected", {
             code: event.code,
             reason: event.reason,
@@ -296,8 +281,6 @@ if (window.BackendBridge) {
      * @param {Object} data - Message data
      */
     handleWebSocketMessage(data) {
-      console.log("[BackendBridge] WebSocket message received:", data);
-
       switch (data.type) {
         case "generation_progress":
           this.eventBridge.emit("generation:progress", data);
@@ -350,8 +333,6 @@ if (window.BackendBridge) {
       }
 
       this.requestQueue.clear();
-
-      console.log("[BackendBridge] Backend bridge destroyed");
     }
   }
 

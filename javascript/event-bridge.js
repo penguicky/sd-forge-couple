@@ -5,9 +5,6 @@
 
 // Guard: Don't load if bundle version is already available
 if (window.EventBridge) {
-  console.log(
-    "[EventBridge] Bundle version already loaded, skipping standalone version"
-  );
 } else {
   class EventBridge extends EventTarget {
     constructor() {
@@ -45,7 +42,6 @@ if (window.EventBridge) {
 
       // Log event if debug mode is enabled
       if (this.debugMode) {
-        console.log(`[EventBridge] Emitting: ${eventType}`, eventData);
       }
 
       // Add to history
@@ -81,7 +77,6 @@ if (window.EventBridge) {
     on(eventType, handler, options = {}) {
       const wrappedHandler = (event) => {
         if (this.debugMode) {
-          console.log(`[EventBridge] Received: ${eventType}`, event.detail);
         }
         handler(event);
       };
@@ -167,9 +162,6 @@ if (window.EventBridge) {
      */
     setDebugMode(enabled) {
       this.debugMode = enabled;
-      console.log(
-        `[EventBridge] Debug mode ${enabled ? "enabled" : "disabled"}`
-      );
     }
 
     /**
@@ -256,7 +248,6 @@ if (window.EventBridge) {
 
       // Remove all listeners (this is a simplified cleanup)
       // In a real implementation, you'd want to track listeners more carefully
-      console.log("[EventBridge] Event bridge destroyed");
 
       // Remove from window
       if (window.__forgeCoupleEventBridge === this) {

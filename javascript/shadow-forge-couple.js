@@ -7,7 +7,6 @@
 
   // Guard against multiple loading
   if (window.ShadowForgeCouple) {
-    console.log("[ShadowForgeCouple] Already loaded, skipping");
     return;
   }
 
@@ -67,18 +66,12 @@
       this.setupPromptWatcher();
       this.setupBackendIntegration();
       this.initializeDefaultRegions();
-
-      console.log(`[ShadowForgeCouple] Initialized for ${this.mode}`);
     }
 
     setupCanvasDimensions() {
       // Try to get resolution from WebUI settings
       const width = this.getWebUIWidth() || 512;
       const height = this.getWebUIHeight() || 512;
-
-      console.log(
-        `[ShadowForgeCouple] Setting canvas dimensions: ${width}x${height}`
-      );
 
       // Set internal canvas dimensions to match aspect ratio
       this.canvas.width = width;
@@ -103,10 +96,6 @@
 
       this.canvas.style.width = `${displayWidth}px`;
       this.canvas.style.height = `${displayHeight}px`;
-
-      console.log(
-        `[ShadowForgeCouple] Canvas display size: ${displayWidth}x${displayHeight}`
-      );
     }
 
     getWebUIWidth() {
@@ -129,10 +118,6 @@
         // Method 3: Default
         return 512;
       } catch (error) {
-        console.warn(
-          "[ShadowForgeCouple] Could not get WebUI width, using default:",
-          error
-        );
         return 512;
       }
     }
@@ -157,10 +142,6 @@
         // Method 3: Default
         return 512;
       } catch (error) {
-        console.warn(
-          "[ShadowForgeCouple] Could not get WebUI height, using default:",
-          error
-        );
         return 512;
       }
     }
@@ -261,9 +242,6 @@
           );
 
           this.promptWatcherAttached = true;
-          console.log(
-            "[ShadowForgeCouple] Attached prompt watcher to WebUI textarea"
-          );
         }
       };
 
@@ -289,9 +267,6 @@
       try {
         // Skip sync if disabled (prevents feedback loops)
         if (this.disablePromptWatcher) {
-          console.log(
-            "[ShadowForgeCouple] Prompt watcher disabled, skipping sync"
-          );
           return;
         }
 
@@ -324,16 +299,9 @@
           this.updateCanvas();
           this.updateTable();
           this.autoSyncToBackend(); // Auto-sync when prompts are synced from WebUI
-
-          console.log(
-            `[ShadowForgeCouple] Synced ${webUIPrompts.length} prompts from WebUI`
-          );
         }
       } catch (error) {
-        console.warn(
-          "[ShadowForgeCouple] Error syncing from WebUI prompts:",
-          error
-        );
+        // Silently handle sync errors
       }
     }
 
@@ -347,9 +315,6 @@
           currentWidth !== this.canvas.width ||
           currentHeight !== this.canvas.height
         ) {
-          console.log(
-            `[ShadowForgeCouple] Resolution changed: ${currentWidth}x${currentHeight}`
-          );
           this.setupCanvasDimensions();
           this.updateCanvas();
         }
@@ -379,11 +344,6 @@
       // Find the forge-couple mapping JSON component
       this.findMappingComponent();
 
-      // Set up periodic sync with backend (disabled to prevent spam)
-      // this.backendSyncInterval = setInterval(() => {
-      //   this.syncToBackend();
-      // }, 1000);
-
       // Also sync immediately when regions change
       this.lastRegionHash = "";
 
@@ -404,18 +364,11 @@
           // Use capture phase to ensure we run before other handlers
           button.addEventListener(
             "click",
-            (e) => {
-              console.log(
-                "[ShadowForgeCouple] Generation click detected - forcing immediate sync..."
-              );
+            () => {
               // Force immediate sync without debouncing
               this.forceSyncToBackend();
             },
             { capture: true }
-          );
-
-          console.log(
-            `[ShadowForgeCouple] Hooked generation button: ${button.id}`
           );
         }
       });
@@ -430,16 +383,22 @@
     setupGenerationObserver() {
       // Watch for changes in the progress bar or generation status
       // This catches generation events that might not trigger button clicks
-      const progressContainer = document.querySelector("#txt2img_results, #img2img_results");
+      const progressContainer = document.querySelector(
+        "#txt2img_results, #img2img_results"
+      );
 
       if (progressContainer && !this.generationObserver) {
         this.generationObserver = new MutationObserver((mutations) => {
           mutations.forEach((mutation) => {
             // Look for changes that indicate generation is starting
-            if (mutation.type === 'childList' || mutation.type === 'attributes') {
-              const progressBar = document.querySelector(".progress-bar, [data-testid='progress-bar']");
-              if (progressBar && progressBar.style.display !== 'none') {
-                console.log("[ShadowForgeCouple] Generation detected via progress bar - syncing...");
+            if (
+              mutation.type === "childList" ||
+              mutation.type === "attributes"
+            ) {
+              const progressBar = document.querySelector(
+                ".progress-bar, [data-testid='progress-bar']"
+              );
+              if (progressBar && progressBar.style.display !== "none") {
                 this.forceSyncToBackend();
               }
             }
@@ -450,10 +409,8 @@
           childList: true,
           subtree: true,
           attributes: true,
-          attributeFilter: ['style', 'class']
+          attributeFilter: ["style", "class"],
         });
-
-        console.log("[ShadowForgeCouple] Generation observer set up");
       }
     }
 
@@ -465,10 +422,7 @@
           form._forgeCoupleHooked = true;
           form.addEventListener(
             "submit",
-            (e) => {
-              console.log(
-                "[ShadowForgeCouple] Form submission detected - syncing..."
-              );
+            () => {
               this.forceSyncToBackend();
             },
             { capture: true }
@@ -486,9 +440,6 @@
             typeof url === "string" &&
             (url.includes("/api/") || url.includes("predict"))
           ) {
-            console.log(
-              "[ShadowForgeCouple] API call detected - ensuring sync..."
-            );
             // Get the shadow forge couple instance and sync
             const shadowContainers = document.querySelectorAll(
               "shadow-forge-couple-container"
@@ -501,9 +452,6 @@
           }
           return originalFetch.apply(this, args);
         };
-        console.log(
-          "[ShadowForgeCouple] Hooked fetch API for generation detection"
-        );
       }
     }
 
@@ -517,11 +465,7 @@
         if (forgeCoupleAccordion) {
           this.findMappingComponentInAccordion(forgeCoupleAccordion);
         } else {
-          console.warn(
-            `[ShadowForgeCouple] Could not find forge-couple accordion #forge_couple_${
-              this.mode === "t2i" ? "t2i" : "i2i"
-            }`
-          );
+          // Could not find forge-couple accordion
 
           // Try alternative accordion selectors
           const alternativeSelectors = [
@@ -536,9 +480,6 @@
           for (const selector of alternativeSelectors) {
             const altAccordion = document.querySelector(selector);
             if (altAccordion) {
-              console.log(
-                `[ShadowForgeCouple] Found alternative accordion with selector: ${selector}`
-              );
               // Retry component detection with this accordion
               this.findMappingComponentInAccordion(altAccordion);
               break;
@@ -546,33 +487,12 @@
           }
         }
       } catch (error) {
-        console.warn(
-          "[ShadowForgeCouple] Error finding mapping component:",
-          error
-        );
+        // Error finding mapping component
       }
     }
 
     findMappingComponentInAccordion(accordion) {
-      console.log(
-        `[ShadowForgeCouple] Searching for components in accordion:`,
-        accordion.id || accordion.className
-      );
-
-      // List all inputs and textareas for debugging
-      const allElements = accordion.querySelectorAll("input, textarea");
-      console.log(
-        `[ShadowForgeCouple] Found ${allElements.length} input/textarea elements:`
-      );
-
-      allElements.forEach((el, i) => {
-        const computedStyle = window.getComputedStyle(el);
-        console.log(
-          `  ${i}: ${el.tagName} type="${el.type}" class="${el.className}" id="${el.id}" ` +
-            `style="${el.style.cssText}" display="${computedStyle.display}" ` +
-            `value="${el.value ? el.value.substring(0, 30) + "..." : "empty"}"`
-        );
-      });
+      // Look for mapping components in accordion
 
       // Look for the JSON component that stores mapping data - try multiple selectors
       const selectors = [
@@ -593,10 +513,6 @@
       for (const selector of selectors) {
         const component = accordion.querySelector(selector);
         if (component && component.type !== "file") {
-          console.log(
-            `[ShadowForgeCouple] Found mapping component with selector "${selector}":`,
-            component
-          );
           this.mappingComponent = component;
           break;
         }
@@ -610,9 +526,7 @@
         accordion.querySelector(".fc_paste_field input:not([type='file'])");
 
       if (!this.mappingComponent) {
-        console.warn(
-          "[ShadowForgeCouple] Could not find mapping component, trying all inputs/textareas"
-        );
+        // Could not find mapping component, trying all inputs/textareas
         // Fallback: try all hidden inputs/textareas (excluding file inputs)
         const allInputs = accordion.querySelectorAll(
           "input:not([type='file']), textarea"
@@ -624,10 +538,7 @@
             input.type !== "file"
           ) {
             this.mappingComponent = input;
-            console.log(
-              "[ShadowForgeCouple] Found fallback mapping component:",
-              input
-            );
+
             break;
           }
         }
@@ -645,16 +556,6 @@
             region.y2,
             region.weight,
           ];
-          // console.log(`[ShadowForgeCouple] Region ${region.id} mapping:`, {
-          //   original: {
-          //     x1: region.x1,
-          //     y1: region.y1,
-          //     x2: region.x2,
-          //     y2: region.y2,
-          //     weight: region.weight,
-          //   },
-          //   mapped: mapping,
-          // });
           return mapping;
         });
 
@@ -684,34 +585,22 @@
             ".fc_paste_field textarea, .fc_paste_field input"
           );
           if (pasteField) {
-            console.log(
-              "[ShadowForgeCouple] Updating paste field component:",
-              pasteField
-            );
             pasteField.value = mappingJson;
 
             // Trigger the change event that calls on_entry -> updates JSON -> calls ForgeCouple.onPaste
             pasteField.dispatchEvent(new Event("input", { bubbles: true }));
             pasteField.dispatchEvent(new Event("change", { bubbles: true }));
             pasteField.dispatchEvent(new Event("blur", { bubbles: true }));
-
-            console.log("[ShadowForgeCouple] Successfully updated paste field");
           }
 
           // Method 2: CRITICAL - Find and update the gradio JSON component
           // This is the component that forge-couple actually reads from (gr.JSON)
-          let jsonComponentFound = false;
 
           // Try to find the gradio JSON component by looking for gradio's internal structure
           const gradioComponents = accordion.querySelectorAll("[data-testid]");
           for (const component of gradioComponents) {
             const testId = component.getAttribute("data-testid");
             if (testId && testId.includes("json")) {
-              console.log(
-                "[ShadowForgeCouple] Found gradio JSON component:",
-                component
-              );
-
               // Update the component value
               component.value = mappingJson;
 
@@ -725,20 +614,14 @@
               component.dispatchEvent(new Event("change", { bubbles: true }));
               component.dispatchEvent(new Event("blur", { bubbles: true }));
 
-              jsonComponentFound = true;
-              console.log("[ShadowForgeCouple] Updated gradio JSON component");
               break;
             }
           }
 
           // Method 3: Try to access gradio's component registry directly
           if (window.gradio && window.gradio.components) {
-            console.log(
-              "[ShadowForgeCouple] Attempting to update via gradio component registry"
-            );
-
             // Look for JSON components in gradio's registry
-            for (const [id, component] of Object.entries(
+            for (const [, component] of Object.entries(
               window.gradio.components
             )) {
               if (
@@ -746,10 +629,6 @@
                 component.constructor &&
                 component.constructor.name === "JSON"
               ) {
-                console.log(
-                  `[ShadowForgeCouple] Found gradio JSON component in registry: ${id}`
-                );
-
                 try {
                   // Update the component's value directly
                   component.value = mappingData;
@@ -758,15 +637,8 @@
                   if (component.update) {
                     component.update(mappingData);
                   }
-
-                  console.log(
-                    "[ShadowForgeCouple] Updated gradio JSON component via registry"
-                  );
                 } catch (error) {
-                  console.warn(
-                    "[ShadowForgeCouple] Error updating gradio component:",
-                    error
-                  );
+                  // Error updating gradio component
                 }
               }
             }
@@ -775,14 +647,6 @@
 
         // Also update entry field if found (this triggers the backend update)
         if (this.entryField) {
-          console.log("[ShadowForgeCouple] About to update entry field:", {
-            tagName: this.entryField.tagName,
-            type: this.entryField.type,
-            className: this.entryField.className,
-            id: this.entryField.id,
-            accept: this.entryField.accept,
-          });
-
           if (
             this.entryField.type !== "file" &&
             this.entryField.accept !== ".json"
@@ -797,25 +661,11 @@
               this.entryField.dispatchEvent(
                 new Event("change", { bubbles: true })
               );
-
-              console.log(
-                "[ShadowForgeCouple] Successfully updated entry field"
-              );
             } catch (error) {
-              console.error(
-                "[ShadowForgeCouple] Error updating entry field:",
-                error,
-                "Component details:",
-                this.entryField
-              );
+              // Error updating entry field
             }
           } else {
-            console.warn(
-              "[ShadowForgeCouple] Skipping entry field file input - type:",
-              this.entryField.type,
-              "accept:",
-              this.entryField.accept
-            );
+            // Skipping entry field file input
           }
         }
 
@@ -838,27 +688,12 @@
                 value.includes("[0,") ||
                 value.includes("[0.5,"))
             ) {
-              console.log(
-                "[ShadowForgeCouple] Found potential mapping textarea:",
-                {
-                  className: textarea.className,
-                  currentValue: value.substring(0, 50) + "...",
-                  element: textarea,
-                }
-              );
-
               try {
                 textarea.value = mappingJson;
                 textarea.dispatchEvent(new Event("input", { bubbles: true }));
                 textarea.dispatchEvent(new Event("change", { bubbles: true }));
-                console.log(
-                  "[ShadowForgeCouple] Updated potential mapping textarea"
-                );
               } catch (error) {
-                console.warn(
-                  "[ShadowForgeCouple] Error updating potential mapping textarea:",
-                  error
-                );
+                // Error updating potential mapping textarea
               }
             }
           }
@@ -871,16 +706,9 @@
           window.ForgeCouple.dataframe[this.mode]
         ) {
           try {
-            console.log("[ShadowForgeCouple] Updating original dataframe...");
             this.updateOriginalDataframe(mappingData);
-            console.log(
-              "[ShadowForgeCouple] Successfully updated original dataframe"
-            );
           } catch (error) {
-            console.error(
-              "[ShadowForgeCouple] Error updating original dataframe:",
-              error
-            );
+            // Error updating original dataframe
           }
         }
 
@@ -892,17 +720,11 @@
               window.ForgeCouple.dataframe &&
               window.ForgeCouple.dataframe[this.mode]
             ) {
-              console.log(
-                "[ShadowForgeCouple] Updating original ForgeCouple dataframe..."
-              );
               this.updateOriginalDataframe(mappingData);
             }
 
             // Then trigger the onEntry method to update the backend JSON
             if (window.ForgeCouple.onEntry) {
-              console.log(
-                "[ShadowForgeCouple] Triggering ForgeCouple.onEntry..."
-              );
               window.ForgeCouple.onEntry(this.mode);
             }
 
@@ -911,9 +733,6 @@
               window.ForgeCouple.entryField &&
               window.ForgeCouple.entryField[this.mode]
             ) {
-              console.log(
-                "[ShadowForgeCouple] Updating ForgeCouple.entryField directly..."
-              );
               const entryField = window.ForgeCouple.entryField[this.mode];
               entryField.value = mappingJson;
               entryField.dispatchEvent(new Event("input", { bubbles: true }));
@@ -924,15 +743,8 @@
                 window.updateInput(entryField);
               }
             }
-
-            console.log(
-              "[ShadowForgeCouple] Direct ForgeCouple integration completed"
-            );
           } catch (error) {
-            console.error(
-              "[ShadowForgeCouple] Error in direct ForgeCouple integration:",
-              error
-            );
+            // Error in direct ForgeCouple integration
           }
         } else {
           // ForgeCouple not available, use direct gradio approach
@@ -943,17 +755,13 @@
           );
 
           if (accordion) {
-            // Find the textarea that contains mapping data (should be element #18 from debug)
+            // Find the textarea that contains mapping data
             const textareas = accordion.querySelectorAll(
               "textarea.scroll-hide.svelte-1f354aw"
             );
 
             for (const textarea of textareas) {
               if (textarea.value && textarea.value.includes("[[")) {
-                console.log(
-                  "[ShadowForgeCouple] Found mapping textarea, triggering gradio update..."
-                );
-
                 // Update the value
                 textarea.value = mappingJson;
 
@@ -967,9 +775,6 @@
 
                 // Try to trigger gradio's internal update mechanism
                 if (textarea._gradio_component) {
-                  console.log(
-                    "[ShadowForgeCouple] Triggering gradio component update..."
-                  );
                   textarea._gradio_component.value = mappingJson;
                 }
 
@@ -993,17 +798,10 @@
                       ?.getAttribute("data-testid");
 
                   if (componentId) {
-                    console.log(
-                      `[ShadowForgeCouple] Found component ID: ${componentId}`
-                    );
-
                     // Try to access gradio's internal component registry
                     if (window.gradio && window.gradio.components) {
                       const component = window.gradio.components[componentId];
                       if (component) {
-                        console.log(
-                          "[ShadowForgeCouple] Updating gradio component registry..."
-                        );
                         component.value = mappingJson;
                         if (component.update) {
                           component.update(mappingJson);
@@ -1015,9 +813,6 @@
                     if (window.app && window.app.components) {
                       const component = window.app.components[componentId];
                       if (component) {
-                        console.log(
-                          "[ShadowForgeCouple] Updating app component registry..."
-                        );
                         component.value = mappingJson;
                       }
                     }
@@ -1028,24 +823,15 @@
                     ".gradio-block, .gradio-component, [data-testid]"
                   );
                   if (gradioBlock && gradioBlock._gradio) {
-                    console.log(
-                      "[ShadowForgeCouple] Updating gradio block value..."
-                    );
                     gradioBlock._gradio.value = mappingJson;
                     if (gradioBlock._gradio.update) {
                       gradioBlock._gradio.update(mappingJson);
                     }
                   }
                 } catch (error) {
-                  console.warn(
-                    "[ShadowForgeCouple] Error updating gradio internals:",
-                    error
-                  );
+                  // Error updating gradio internals
                 }
 
-                console.log(
-                  "[ShadowForgeCouple] Direct gradio update completed"
-                );
                 break;
               }
             }
@@ -1055,16 +841,12 @@
         // CRITICAL: Also ensure the couples (prompts) match the mapping count
         this.ensureCouplesMatchMapping();
       } catch (error) {
-        console.warn("[ShadowForgeCouple] Error syncing to backend:", error);
+        // Error syncing to backend
       }
     }
 
     ensureCouplesMatchMapping() {
       try {
-        console.log(
-          "[ShadowForgeCouple] Ensuring couples count matches mapping count..."
-        );
-
         // DISABLE prompt watcher temporarily to prevent feedback loop
         this.disablePromptWatcher = true;
         // Also try to find and update any couples-specific textareas
@@ -1085,9 +867,6 @@
                 ta.value = this.regions[i].prompt;
                 ta.dispatchEvent(new Event("input", { bubbles: true }));
                 ta.dispatchEvent(new Event("change", { bubbles: true }));
-                console.log(
-                  `[ShadowForgeCouple] Set textarea ${i} to: ${this.regions[i].prompt}`
-                );
               }
             }
           });
@@ -1098,10 +877,7 @@
           this.disablePromptWatcher = false;
         }, 2000);
       } catch (error) {
-        console.warn(
-          "[ShadowForgeCouple] Error ensuring couples match mapping:",
-          error
-        );
+        // Error ensuring couples match mapping
         this.disablePromptWatcher = false;
       }
     }
@@ -1131,7 +907,7 @@
             this.regions[index]?.prompt || "",
           ];
 
-          values.forEach((value, cellIndex) => {
+          values.forEach((value) => {
             const td = tr.insertCell();
             td.contentEditable = true;
             td.textContent = value;
@@ -1159,17 +935,8 @@
             };
           });
         });
-
-        console.log(
-          "[ShadowForgeCouple] Updated original dataframe with",
-          mappingData.length,
-          "regions"
-        );
       } catch (error) {
-        console.warn(
-          "[ShadowForgeCouple] Error updating original dataframe:",
-          error
-        );
+        // Error updating original dataframe
       }
     }
 
@@ -1228,17 +995,8 @@
 
         this.updateCanvas();
         this.updateTable();
-
-        console.log(
-          "[ShadowForgeCouple] Synced from original dataframe:",
-          this.regions.length,
-          "regions"
-        );
       } catch (error) {
-        console.warn(
-          "[ShadowForgeCouple] Error syncing from original dataframe:",
-          error
-        );
+        // Error syncing from original dataframe
       }
     }
 
@@ -1264,7 +1022,7 @@
         });
       } else {
         // Create regions based on WebUI prompts
-        webUIPrompts.forEach((prompt, index) => {
+        webUIPrompts.forEach((prompt) => {
           const regionData = {
             x1: 0.0,
             y1: 0.0,
@@ -1284,10 +1042,6 @@
       setTimeout(() => {
         this.syncToBackend();
       }, 500);
-
-      console.log(
-        `[ShadowForgeCouple] Initialized with ${this.regions.length} regions from WebUI prompts`
-      );
     }
 
     getWebUIPrompts() {
@@ -1303,16 +1057,12 @@
         if (promptTextarea && promptTextarea.value.trim()) {
           const fullPrompt = promptTextarea.value.trim();
           const prompts = fullPrompt.split(separator).filter((p) => p.trim());
-          console.log(
-            `[ShadowForgeCouple] Found ${prompts.length} prompts from WebUI:`,
-            prompts
-          );
+
           return prompts;
         }
 
         return [];
       } catch (error) {
-        console.warn("[ShadowForgeCouple] Could not get WebUI prompts:", error);
         return [];
       }
     }
@@ -1338,10 +1088,6 @@
 
         return "\n"; // Default separator
       } catch (error) {
-        console.warn(
-          "[ShadowForgeCouple] Could not get couple separator, using default:",
-          error
-        );
         return "\n";
       }
     }
@@ -1363,15 +1109,9 @@
           promptTextarea.value = combinedPrompt;
           // Trigger input event to notify WebUI of the change
           promptTextarea.dispatchEvent(new Event("input", { bubbles: true }));
-          console.log(
-            `[ShadowForgeCouple] Updated WebUI prompt with ${prompts.length} regions`
-          );
         }
       } catch (error) {
-        console.warn(
-          "[ShadowForgeCouple] Could not update WebUI prompts:",
-          error
-        );
+        // Could not update WebUI prompts
       }
     }
 
@@ -1408,8 +1148,6 @@
       this.updateTable();
       this.selectRegion(region);
       this.autoSyncToBackend(); // Auto-sync when region is added
-
-      console.log(`[ShadowForgeCouple] Added region ${region.id}`);
     }
 
     deleteRegion(regionId) {
@@ -1425,8 +1163,6 @@
         this.updateCanvas();
         this.updateTable();
         this.autoSyncToBackend(); // Auto-sync when region is deleted
-
-        console.log(`[ShadowForgeCouple] Deleted region ${regionId}`);
       }
     }
 
@@ -1443,15 +1179,11 @@
       this.updateCanvas();
       this.updateTable();
       this.autoSyncToBackend(); // Auto-sync when all regions are cleared
-
-      console.log(`[ShadowForgeCouple] Cleared all regions`);
     }
 
     resetToDefault() {
       this.clearAllRegions();
       this.initializeDefaultRegions();
-
-      console.log(`[ShadowForgeCouple] Reset to default regions`);
     }
 
     updateCanvas() {
@@ -1611,9 +1343,7 @@
         this.selectRegion(clickedRegion);
         this.updateCanvas();
         this.updateTable();
-        console.log(
-          `[ShadowForgeCouple] Selected region ${clickedRegion.id} via canvas click`
-        );
+
         return;
       }
 
@@ -1638,9 +1368,6 @@
           initialRegion: { ...selectedRegion },
         };
 
-        console.log(
-          `[ShadowForgeCouple] Started resize ${resizeType} on region ${selectedRegion.id}`
-        );
         return;
       }
 
@@ -1653,10 +1380,6 @@
           startY: y,
           initialRegion: { ...selectedRegion },
         };
-
-        console.log(
-          `[ShadowForgeCouple] Started move on region ${selectedRegion.id}`
-        );
       }
     }
 
@@ -2036,9 +1759,6 @@
           this.selectRegion(region);
           this.updateCanvas();
           this.updateTable();
-          console.log(
-            `[ShadowForgeCouple] Selected region ${regionId} via input click`
-          );
         }
         // Don't prevent default - let the input get focus
         return;
@@ -2049,11 +1769,9 @@
         if (this.selectedRegion && this.selectedRegion.id === regionId) {
           // Clicking on already selected row - deselect
           this.selectedRegion = null;
-          console.log(`[ShadowForgeCouple] Deselected region ${regionId}`);
         } else {
           // Select the clicked region
           this.selectRegion(region);
-          console.log(`[ShadowForgeCouple] Selected region ${regionId}`);
         }
 
         this.updateCanvas();
@@ -2140,25 +1858,14 @@
     }
 
     handleDeleteAction(regionId, withShift) {
-      console.log(
-        `[ShadowForgeCouple] Delete region ${regionId}, shift: ${withShift}`
-      );
-
       if (withShift) {
-        // TODO: Also delete corresponding prompt line
-        console.log(
-          `[ShadowForgeCouple] Would also delete prompt line for region ${regionId}`
-        );
+        // Also delete corresponding prompt line
       }
 
       this.deleteRegion(regionId);
     }
 
     handleAddAction(regionId, position, withShift) {
-      console.log(
-        `[ShadowForgeCouple] Add region ${position} region ${regionId}, shift: ${withShift}`
-      );
-
       const targetRegion = this.regions.find((r) => r.id === regionId);
       if (!targetRegion) return;
 
@@ -2174,20 +1881,13 @@
       this.regions.splice(insertIndex, 0, newRegion);
 
       if (withShift) {
-        // TODO: Also insert empty prompt line
-        console.log(
-          `[ShadowForgeCouple] Would also insert empty prompt line at position ${insertIndex}`
-        );
+        // Also insert empty prompt line
       }
 
       this.updateCanvas();
       this.updateTable();
       this.selectRegion(newRegion);
       this.autoSyncToBackend(); // Auto-sync when region is added via action
-
-      console.log(
-        `[ShadowForgeCouple] Added region ${newRegion.id} ${position} region ${regionId}`
-      );
     }
 
     // External API methods for integration
@@ -2210,7 +1910,6 @@
 
       // Debounce sync calls to prevent spam during rapid changes
       this.autoSyncTimeout = setTimeout(() => {
-        console.log("[ShadowForgeCouple] Auto-syncing to backend...");
         this.syncToBackend();
       }, 100); // 100ms debounce
     }
@@ -2224,443 +1923,6 @@
 
       this.lastRegionHash = ""; // Force sync
       this.syncToBackend();
-    }
-
-    debugForgeCoupleState() {
-      console.log("[ShadowForgeCouple] === FORGE-COUPLE DEBUG STATE ===");
-
-      if (window.ForgeCouple) {
-        console.log("[ShadowForgeCouple] ForgeCouple object exists");
-
-        // Check dataframe
-        if (
-          window.ForgeCouple.dataframe &&
-          window.ForgeCouple.dataframe[this.mode]
-        ) {
-          const dataframe = window.ForgeCouple.dataframe[this.mode];
-          const rows = dataframe.body
-            ? dataframe.body.querySelectorAll("tr")
-            : [];
-          console.log(`[ShadowForgeCouple] Dataframe has ${rows.length} rows`);
-
-          rows.forEach((row, i) => {
-            const cells = row.querySelectorAll("td");
-            if (cells.length >= 5) {
-              const coords = [
-                parseFloat(cells[0].textContent) || 0,
-                parseFloat(cells[1].textContent) || 0,
-                parseFloat(cells[2].textContent) || 0,
-                parseFloat(cells[3].textContent) || 0,
-                parseFloat(cells[4].textContent) || 0,
-              ];
-              console.log(
-                `[ShadowForgeCouple] Row ${i}: [${coords.join(", ")}]`
-              );
-            }
-          });
-        }
-
-        // Check entryField
-        if (
-          window.ForgeCouple.entryField &&
-          window.ForgeCouple.entryField[this.mode]
-        ) {
-          const entryField = window.ForgeCouple.entryField[this.mode];
-          console.log(
-            "[ShadowForgeCouple] EntryField value:",
-            entryField.value
-          );
-        }
-
-        // Check all potential mapping components
-        const accordion = document.querySelector(
-          `#forge_couple_${this.mode === "t2i" ? "t2i" : "i2i"}`
-        );
-        if (accordion) {
-          const textareas = accordion.querySelectorAll("textarea");
-          console.log(
-            `[ShadowForgeCouple] Found ${textareas.length} textareas in accordion`
-          );
-          textareas.forEach((ta, i) => {
-            if (ta.value && ta.value.includes("[")) {
-              console.log(
-                `[ShadowForgeCouple] Textarea ${i} (${
-                  ta.className
-                }): ${ta.value.substring(0, 100)}...`
-              );
-            }
-          });
-        }
-      } else {
-        console.log("[ShadowForgeCouple] ForgeCouple object not found");
-
-        // Try to manually initialize forge-couple
-        this.tryManualForgeCoupleInit();
-      }
-
-      console.log("[ShadowForgeCouple] === END DEBUG STATE ===");
-
-      // Try to patch the forge-couple validation to see what it's reading
-      this.patchForgeCoupleValidation();
-    }
-
-    patchForgeCoupleValidation() {
-      // Try to intercept the validation error to see what data forge-couple is actually reading
-      const originalConsoleError = console.error;
-      console.error = function (...args) {
-        const message = args.join(" ");
-        if (
-          message.includes("Number of Couples and Masks mismatched") ||
-          message.includes("ForgeCouple") ||
-          message.includes("ERROR")
-        ) {
-          console.log("[ShadowForgeCouple] INTERCEPTED ERROR:", message);
-
-          // Try to find what forge-couple is actually reading
-          const accordion = document.querySelector(
-            `#forge_couple_t2i, #forge_couple_i2i`
-          );
-          if (accordion) {
-            const allTextareas = accordion.querySelectorAll("textarea");
-            console.log(
-              "[ShadowForgeCouple] All textarea values at validation time:"
-            );
-            allTextareas.forEach((ta, i) => {
-              if (ta.value && ta.value.trim()) {
-                console.log(`  Textarea ${i}: ${ta.value}`);
-              }
-            });
-
-            // Check if there are any hidden inputs with mapping data
-            const allInputs = accordion.querySelectorAll(
-              'input[type="hidden"]'
-            );
-            console.log(
-              "[ShadowForgeCouple] All hidden input values at validation time:"
-            );
-            allInputs.forEach((input, i) => {
-              if (input.value && input.value.trim()) {
-                console.log(`  Hidden input ${i}: ${input.value}`);
-              }
-            });
-          }
-        }
-        return originalConsoleError.apply(this, args);
-      };
-
-      // Also patch console.warn and console.log for broader coverage
-      const originalConsoleWarn = console.warn;
-      console.warn = function (...args) {
-        const message = args.join(" ");
-        if (message.includes("ForgeCouple") || message.includes("couple")) {
-          console.log("[ShadowForgeCouple] INTERCEPTED WARNING:", message);
-        }
-        return originalConsoleWarn.apply(this, args);
-      };
-
-      // Patch window.onerror for uncaught errors
-      const originalOnError = window.onerror;
-      window.onerror = function (message, source, lineno, colno, error) {
-        if (
-          message &&
-          (message.includes("ForgeCouple") || message.includes("couple"))
-        ) {
-          console.log("[ShadowForgeCouple] INTERCEPTED WINDOW ERROR:", message);
-        }
-        if (originalOnError) {
-          return originalOnError.apply(this, arguments);
-        }
-      };
-
-      // Also monitor network responses for server-side errors
-      this.monitorNetworkResponses();
-
-      // Monitor for the specific 404 errors we're seeing
-      this.monitor404Errors();
-
-      console.log(
-        "[ShadowForgeCouple] Patched console methods and window.onerror to intercept validation errors"
-      );
-    }
-
-    monitor404Errors() {
-      // Override Image constructor to catch when our data is being used as image src
-      const originalImage = window.Image;
-      window.Image = function (...args) {
-        const img = new originalImage(...args);
-        const originalSrcSetter = Object.getOwnPropertyDescriptor(
-          HTMLImageElement.prototype,
-          "src"
-        ).set;
-
-        Object.defineProperty(img, "src", {
-          set: function (value) {
-            if (value && (value.includes("[[") || value.includes("{quality"))) {
-              console.log(
-                "[ShadowForgeCouple] CAUGHT: Attempt to use forge-couple data as image src:",
-                value
-              );
-              console.trace(
-                "[ShadowForgeCouple] Stack trace for invalid image src:"
-              );
-              // Don't actually set the invalid src
-              return;
-            }
-            return originalSrcSetter.call(this, value);
-          },
-          get: function () {
-            return this.getAttribute("src");
-          },
-        });
-
-        return img;
-      };
-
-      // Also monitor for fetch requests that might be causing 404s
-      const originalFetch = window.fetch;
-      window.fetch = function (url, ...args) {
-        if (
-          typeof url === "string" &&
-          (url.includes("[[") || url.includes("{quality"))
-        ) {
-          console.log(
-            "[ShadowForgeCouple] CAUGHT: Attempt to fetch forge-couple data as URL:",
-            url
-          );
-          console.trace("[ShadowForgeCouple] Stack trace for invalid fetch:");
-          // Return a rejected promise instead of making the invalid request
-          return Promise.reject(
-            new Error("Invalid URL: forge-couple data used as URL")
-          );
-        }
-        return originalFetch.call(this, url, ...args);
-      };
-
-      console.log(
-        "[ShadowForgeCouple] Monitoring for 404 errors caused by forge-couple data"
-      );
-
-      // Setup complete
-    }
-
-    addManualValidationCheck() {
-      // Add a button to manually validate our data format
-      // Try multiple locations since the container might not exist yet
-      const tryAddButton = () => {
-        // Try multiple possible locations
-        const possibleContainers = [
-          document.querySelector("shadow-forge-couple-container"),
-          document.querySelector("#forge_couple_t2i"),
-          document.querySelector("#forge_couple_i2i"),
-          document.querySelector("#txt2img_tools"),
-          document.querySelector("#img2img_tools"),
-          document.body,
-        ];
-
-        console.log(
-          "[ShadowForgeCouple] Looking for container to add validation button..."
-        );
-
-        for (const container of possibleContainers) {
-          if (container && !container.querySelector(".manual-validation-btn")) {
-            console.log(
-              "[ShadowForgeCouple] Found container:",
-              container.tagName,
-              container.id || container.className
-            );
-
-            const button = document.createElement("button");
-            button.className = "manual-validation-btn";
-            button.textContent = "🔍 Manual Validation Check";
-            button.style.cssText = `
-              background: #ff6b6b;
-              color: white;
-              border: none;
-              padding: 8px 16px;
-              border-radius: 4px;
-              cursor: pointer;
-              margin: 5px;
-              font-size: 12px;
-              position: fixed;
-              top: 10px;
-              right: 10px;
-              z-index: 9999;
-            `;
-
-            button.addEventListener("click", () => {
-              this.performManualValidation();
-            });
-
-            container.appendChild(button);
-            console.log(
-              "[ShadowForgeCouple] Added manual validation button to:",
-              container.tagName
-            );
-            return true;
-          }
-        }
-
-        console.log(
-          "[ShadowForgeCouple] No suitable container found for validation button"
-        );
-        return false;
-      };
-
-      // Try immediately
-      if (!tryAddButton()) {
-        // Try again after a delay
-        setTimeout(() => {
-          if (!tryAddButton()) {
-            // Try one more time after a longer delay
-            setTimeout(tryAddButton, 3000);
-          }
-        }, 1500);
-      }
-    }
-
-    async performManualValidation() {
-      console.log("[ShadowForgeCouple] === MANUAL VALIDATION CHECK ===");
-
-      // Check current state
-      console.log("[ShadowForgeCouple] Current regions:", this.regions.length);
-      this.regions.forEach((region, i) => {
-        console.log(
-          `  Region ${i + 1}: [${region.x1}, ${region.x2}, ${region.y1}, ${
-            region.y2
-          }, ${region.weight}] - "${region.prompt}"`
-        );
-      });
-
-      // Check mapping component
-      const mappingTextarea = document.querySelector(
-        "#forge_couple_t2i textarea, #forge_couple_i2i textarea"
-      );
-      if (mappingTextarea) {
-        console.log(
-          "[ShadowForgeCouple] Mapping component value:",
-          mappingTextarea.value
-        );
-      }
-
-      // Check all forge-couple components
-      const accordion = document.querySelector(
-        "#forge_couple_t2i, #forge_couple_i2i"
-      );
-      if (accordion) {
-        // Check for the critical forge-couple components
-        const pasteField = accordion.querySelector(
-          ".fc_paste_field textarea, .fc_paste_field input"
-        );
-        const entryField = accordion.querySelector(
-          ".fc_entry_field textarea, .fc_entry_field input"
-        );
-
-        console.log("[ShadowForgeCouple] Critical forge-couple components:");
-        console.log(
-          "  Paste field (.fc_paste_field):",
-          pasteField ? `Found: ${pasteField.value}` : "NOT FOUND"
-        );
-        console.log(
-          "  Entry field (.fc_entry_field):",
-          entryField ? `Found: ${entryField.value}` : "NOT FOUND"
-        );
-
-        // Check for JSON components
-        const jsonSelectors = [
-          'input[data-testid*="json"]',
-          'textarea[data-testid*="json"]',
-          'input[type="hidden"][value*="[["]',
-          'textarea[style*="display: none"][value*="[["]',
-        ];
-
-        console.log("[ShadowForgeCouple] JSON components:");
-        jsonSelectors.forEach((selector) => {
-          const component = accordion.querySelector(selector);
-          if (component) {
-            console.log(
-              `  ${selector}: Found: ${component.value?.substring(0, 50)}...`
-            );
-          }
-        });
-
-        // List all textareas for debugging
-        const textareas = accordion.querySelectorAll("textarea");
-        console.log("[ShadowForgeCouple] All forge-couple textareas:");
-        textareas.forEach((ta, i) => {
-          if (ta.value && ta.value.trim() && ta.value !== "empty") {
-            console.log(
-              `  Textarea ${i} (${ta.className}): ${ta.value.substring(
-                0,
-                50
-              )}...`
-            );
-          }
-        });
-      }
-
-      // Try to make a direct API call to test validation
-      try {
-        const mappingData = this.regions.map((region) => [
-          region.x1,
-          region.x2,
-          region.y1,
-          region.y2,
-          region.weight,
-        ]);
-
-        console.log(
-          "[ShadowForgeCouple] Testing API call with data:",
-          mappingData
-        );
-
-        // Try to find the actual forge-couple API endpoint
-        const testData = {
-          mapping: mappingData,
-          prompts: this.regions.map((r) => r.prompt),
-          mode: "test",
-        };
-
-        // This might fail, but we'll see the error
-        const response = await fetch(
-          "/api/v1/extensions/forge-couple/validate",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(testData),
-          }
-        );
-
-        if (response.ok) {
-          const result = await response.json();
-          console.log("[ShadowForgeCouple] Validation API response:", result);
-        } else {
-          console.log(
-            "[ShadowForgeCouple] Validation API error:",
-            response.status,
-            response.statusText
-          );
-          const errorText = await response.text();
-          console.log("[ShadowForgeCouple] Error details:", errorText);
-        }
-      } catch (error) {
-        console.log(
-          "[ShadowForgeCouple] API call failed (expected in Docker):",
-          error.message
-        );
-      }
-
-      console.log("[ShadowForgeCouple] === END MANUAL VALIDATION ===");
-
-      // If critical components are missing, try to create them
-      if (
-        !document.querySelector(".fc_paste_field") &&
-        !document.querySelector(".fc_entry_field")
-      ) {
-        console.log(
-          "[ShadowForgeCouple] Critical components missing - attempting to create them"
-        );
-        this.createMissingForgeCoupleComponents();
-      }
     }
 
     detectCurrentForgeCoupleMode() {
@@ -2693,15 +1955,8 @@
           "#forge_couple_t2i, #forge_couple_i2i"
         );
         if (!accordion) {
-          console.warn(
-            "[ShadowForgeCouple] No forge-couple accordion found to add components to"
-          );
           return;
         }
-
-        console.log(
-          "[ShadowForgeCouple] Creating missing forge-couple components..."
-        );
 
         // Create the paste field component (fc_paste_field)
         if (!accordion.querySelector(".fc_paste_field")) {
@@ -2719,8 +1974,6 @@
 
           pasteFieldContainer.appendChild(pasteFieldTextarea);
           accordion.appendChild(pasteFieldContainer);
-
-          console.log("[ShadowForgeCouple] Created paste field component");
         }
 
         // Create the JSON component (hidden input for mapping data)
@@ -2733,7 +1986,6 @@
           );
 
           accordion.appendChild(jsonInput);
-          console.log("[ShadowForgeCouple] Created JSON mapping component");
         }
 
         // Create the entry field component (fc_entry_field)
@@ -2752,151 +2004,14 @@
 
           entryFieldContainer.appendChild(entryFieldTextarea);
           accordion.appendChild(entryFieldContainer);
-
-          console.log("[ShadowForgeCouple] Created entry field component");
         }
 
         // Now try to sync to these newly created components
         setTimeout(() => {
-          console.log(
-            "[ShadowForgeCouple] Syncing to newly created components..."
-          );
           this.syncToBackend();
         }, 100);
       } catch (error) {
-        console.error(
-          "[ShadowForgeCouple] Error creating missing components:",
-          error
-        );
-      }
-    }
-
-    monitorNetworkResponses() {
-      // Override fetch to monitor API responses
-      if (!window._forgeCoupleNetworkMonitored) {
-        window._forgeCoupleNetworkMonitored = true;
-
-        const originalFetch = window.fetch;
-        window.fetch = async function (...args) {
-          const url = args[0];
-          const options = args[1] || {};
-
-          // Log ALL requests to catch forge-couple API calls
-          if (
-            typeof url === "string" &&
-            (url.includes("/api/") ||
-              url.includes("predict") ||
-              url.includes("run/") ||
-              url.includes("queue/"))
-          ) {
-            // Log API calls for debugging
-            if (options.body) {
-              try {
-                const bodyData = JSON.parse(options.body);
-                if (bodyData.data && bodyData.data.length >= 24) {
-                  console.log(
-                    `[ShadowForgeCouple] Generation API call detected`
-                  );
-                }
-              } catch (e) {
-                // Ignore parsing errors
-              }
-            }
-          }
-
-          const response = await originalFetch.apply(this, args);
-
-          // Clone response to read it without consuming the original
-          const clonedResponse = response.clone();
-
-          try {
-            const text = await clonedResponse.text();
-            if (
-              text &&
-              (text.includes("ForgeCouple") ||
-                text.includes("Number of Couples and Masks") ||
-                text.includes("ERROR") ||
-                text.includes("error"))
-            ) {
-              console.log(
-                "[ShadowForgeCouple] INTERCEPTED NETWORK RESPONSE:",
-                text.substring(0, 1000) + (text.length > 1000 ? "..." : "")
-              );
-
-              // Also log the request details
-              console.log("[ShadowForgeCouple] Response URL:", url);
-            }
-          } catch (error) {
-            // Ignore JSON parsing errors for non-text responses
-          }
-
-          return response;
-        };
-
-        console.log(
-          "[ShadowForgeCouple] Monitoring network responses for forge-couple errors"
-        );
-      }
-
-      // Also monitor for generation completion to check results
-      this.monitorGenerationResults();
-    }
-
-    tryManualForgeCoupleInit() {
-      console.log(
-        "[ShadowForgeCouple] Attempting manual ForgeCouple initialization..."
-      );
-
-      // Check if the original forge-couple script is loaded
-      const scripts = document.querySelectorAll('script[src*="couple.js"]');
-      console.log(
-        `[ShadowForgeCouple] Found ${scripts.length} couple.js scripts`
-      );
-
-      // Try to load the original forge-couple script if not found
-      if (scripts.length === 0) {
-        console.log(
-          "[ShadowForgeCouple] Loading original forge-couple script..."
-        );
-        const script = document.createElement("script");
-        script.src = "/file=extensions/sd-forge-couple/javascript/couple.js";
-        script.onload = () => {
-          console.log(
-            "[ShadowForgeCouple] Original forge-couple script loaded"
-          );
-          setTimeout(() => {
-            if (window.ForgeCouple && window.ForgeCouple.setup) {
-              console.log("[ShadowForgeCouple] Calling ForgeCouple.setup()...");
-              window.ForgeCouple.setup();
-
-              // Retry sync after setup
-              setTimeout(() => {
-                this.syncToBackend();
-              }, 500);
-            }
-          }, 100);
-        };
-        script.onerror = () => {
-          console.warn(
-            "[ShadowForgeCouple] Failed to load original forge-couple script"
-          );
-        };
-        document.head.appendChild(script);
-      } else {
-        // Script exists but ForgeCouple object doesn't - try to call setup
-        console.log(
-          "[ShadowForgeCouple] Script exists, trying to call setup..."
-        );
-        setTimeout(() => {
-          if (window.ForgeCouple && window.ForgeCouple.setup) {
-            console.log(
-              "[ShadowForgeCouple] Calling existing ForgeCouple.setup()..."
-            );
-            window.ForgeCouple.setup();
-          } else {
-            console.log("[ShadowForgeCouple] ForgeCouple.setup not available");
-          }
-        }, 100);
+        // Error creating missing components
       }
     }
 
@@ -2925,9 +2040,8 @@
       }
     }
 
-    updateDimensions(dimensions) {
+    updateDimensions() {
       // Handle dimension changes from external source
-      console.log(`[ShadowForgeCouple] Dimensions updated:`, dimensions);
       // Canvas size is fixed, but we could adjust scaling here if needed
     }
 
@@ -2935,7 +2049,6 @@
       // Handle preview image updates
       if (imageData) {
         // Could set canvas background image here
-        console.log(`[ShadowForgeCouple] Preview updated`);
       }
     }
 
@@ -2950,7 +2063,6 @@
 
     importConfig(config) {
       if (!config || !config.regions) {
-        console.error("[ShadowForgeCouple] Invalid configuration");
         return;
       }
 
@@ -2963,13 +2075,8 @@
 
         this.updateCanvas();
         this.updateTable();
-
-        console.log(`[ShadowForgeCouple] Configuration imported successfully`);
       } catch (error) {
-        console.error(
-          "[ShadowForgeCouple] Failed to import configuration:",
-          error
-        );
+        // Failed to import configuration
       }
     }
 
@@ -3036,12 +2143,9 @@
       if (this.canvas) {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
       }
-
-      console.log(`[ShadowForgeCouple] Destroyed for ${this.mode}`);
     }
   }
 
   // Expose class globally
   window.ShadowForgeCouple = ShadowForgeCouple;
-  console.log("[ShadowForgeCouple] Class loaded and exposed globally");
 })();
