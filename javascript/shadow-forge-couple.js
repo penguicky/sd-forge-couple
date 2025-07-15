@@ -29,6 +29,8 @@
       this.backgroundImageData = null;
       this.autoUpdateEnabled = true; // Default to enabled
       this.imageGenerationObserver = null;
+      this.lastLoadedImageSrc = null;
+      this.periodicCheckInterval = null;
 
       // Interaction state
       this.dragState = {
@@ -45,11 +47,11 @@
         "#ff0000ff",
         "#0066ffff",
         "#00d0ffff",
-        "#00ff88ff",
+        "#01c03dff",
         "#ffc400ff",
         "#ff00ffff",
         "#00ffbfff",
-        "#ffcc00ff",
+        "#fef658ff",
         "#b300ffff",
         "#0099ffff",
         "#ff0073ff",
@@ -2219,6 +2221,9 @@
 
       // Set up mutation observer to watch for new images in txt2img gallery
       this.setupImageGenerationObserver();
+
+      // Set up periodic fallback check
+      this.setupPeriodicImageCheck();
     }
 
     setupImageGenerationObserver() {
@@ -2230,31 +2235,84 @@
         return;
       }
 
-      // Create mutation observer to watch for new images
+      // Create mutation observer to watch for image changes
       this.imageGenerationObserver = new MutationObserver((mutations) => {
+        let shouldUpdate = false;
+
         mutations.forEach((mutation) => {
+          // Watch for new nodes being added (new images)
           if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
-            // Check if new images were added
             mutation.addedNodes.forEach((node) => {
               if (node.nodeType === Node.ELEMENT_NODE) {
                 const newImages = node.querySelectorAll
                   ? node.querySelectorAll("img")
                   : [];
                 if (newImages.length > 0 || node.tagName === "IMG") {
-                  // New image detected, update background if auto-update is enabled
-                  setTimeout(() => this.handleNewImageGenerated(), 500);
+                  shouldUpdate = true;
                 }
               }
             });
           }
+
+          // Watch for attribute changes on existing images (src updates)
+          if (
+            mutation.type === "attributes" &&
+            mutation.target.tagName === "IMG" &&
+            mutation.attributeName === "src"
+          ) {
+            const newSrc = mutation.target.src;
+            if (
+              newSrc &&
+              newSrc !== "data:," &&
+              !newSrc.includes("data:image/gif")
+            ) {
+              shouldUpdate = true;
+            }
+          }
         });
+
+        if (shouldUpdate) {
+          // Debounce multiple rapid changes
+          clearTimeout(this.updateTimeout);
+          this.updateTimeout = setTimeout(
+            () => this.handleNewImageGenerated(),
+            800
+          );
+        }
       });
 
       // Start observing the gallery
       this.imageGenerationObserver.observe(txt2imgGallery, {
         childList: true,
         subtree: true,
+        attributes: true,
+        attributeFilter: ["src"],
+        attributeOldValue: true,
       });
+    }
+
+    setupPeriodicImageCheck() {
+      // Clear any existing interval
+      if (this.periodicCheckInterval) {
+        clearInterval(this.periodicCheckInterval);
+      }
+
+      // Set up a fallback periodic check every 2 seconds
+      // This ensures we catch images even if the mutation observer misses them
+      this.periodicCheckInterval = setInterval(() => {
+        if (this.autoUpdateEnabled && this.mode === "t2i") {
+          const latestImage = this.getLatestGeneratedImage();
+          if (
+            latestImage &&
+            latestImage.src &&
+            latestImage.src !== "data:," &&
+            this.lastLoadedImageSrc !== latestImage.src
+          ) {
+            this.lastLoadedImageSrc = latestImage.src;
+            this.loadBackgroundImage(latestImage.src);
+          }
+        }
+      }, 2000);
     }
 
     handleNewImageGenerated() {
@@ -2263,8 +2321,12 @@
       // Get the latest generated image from txt2img gallery
       const latestImage = this.getLatestGeneratedImage();
       if (latestImage && latestImage.src && latestImage.src !== "data:,") {
-        // Load the new image as background
-        this.loadBackgroundImage(latestImage.src);
+        // Check if this is actually a new image (different from last loaded)
+        if (this.lastLoadedImageSrc !== latestImage.src) {
+          this.lastLoadedImageSrc = latestImage.src;
+          // Load the new image as background
+          this.loadBackgroundImage(latestImage.src);
+        }
       }
     }
 
@@ -2273,13 +2335,34 @@
       const txt2imgGallery = document.querySelector("#txt2img_gallery");
       if (!txt2imgGallery) return null;
 
-      // Look for the main gallery image (not thumbnails)
-      const mainImage =
-        txt2imgGallery.querySelector('img[data-testid="detailed-image"]') ||
-        txt2imgGallery.querySelector(".gallery img") ||
-        txt2imgGallery.querySelector("img");
+      // Try multiple selectors to find the main gallery image
+      const selectors = [
+        'img[data-testid="detailed-image"]', // Main detailed view
+        ".gallery img:first-child", // First image in gallery
+        ".gradio-gallery img:first-child", // Gradio gallery first image
+        'img[src*="tmp"]', // Images with tmp in src (generated)
+        'img:not([src*="data:image/gif"])', // Non-GIF images (avoid loading gifs)
+        "img", // Fallback to any image
+      ];
 
-      return mainImage;
+      for (const selector of selectors) {
+        const images = txt2imgGallery.querySelectorAll(selector);
+        for (const img of images) {
+          // Check if image has valid src and is not a placeholder
+          if (
+            img.src &&
+            img.src !== "data:," &&
+            !img.src.includes("data:image/gif") &&
+            (img.src.startsWith("http") ||
+              img.src.startsWith("file:") ||
+              img.src.startsWith("data:image/"))
+          ) {
+            return img;
+          }
+        }
+      }
+
+      return null;
     }
 
     exportConfig() {
@@ -2404,6 +2487,11 @@
       if (this.imageGenerationObserver) {
         this.imageGenerationObserver.disconnect();
         this.imageGenerationObserver = null;
+      }
+
+      if (this.periodicCheckInterval) {
+        clearInterval(this.periodicCheckInterval);
+        this.periodicCheckInterval = null;
       }
 
       this.resourceManager.cleanup();
