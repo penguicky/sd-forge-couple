@@ -316,10 +316,9 @@
             }
           });
 
-          // Remove excess regions if we have fewer prompts
-          if (webUIPrompts.length < this.regions.length) {
-            this.regions = this.regions.slice(0, webUIPrompts.length);
-          }
+          // DON'T remove excess regions automatically - let user manage regions manually
+          // This prevents regions from being lost when prompts don't change
+          // Only update prompts, preserve existing region coordinates and settings
 
           this.updateCanvas();
           this.updateTable();
@@ -1032,6 +1031,11 @@
     }
 
     initializeDefaultRegions() {
+      // Only initialize if we don't already have regions
+      if (this.regions.length > 0) {
+        return;
+      }
+
       // Get prompts from WebUI and split by separator
       const webUIPrompts = this.getWebUIPrompts();
 
@@ -2308,8 +2312,8 @@
             latestImage.src !== "data:," &&
             this.lastLoadedImageSrc !== latestImage.src
           ) {
-            this.lastLoadedImageSrc = latestImage.src;
-            this.loadBackgroundImage(latestImage.src);
+            // Use the same logic as handleNewImageGenerated to preserve regions
+            this.handleNewImageGenerated();
           }
         }
       }, 2000);
@@ -2324,8 +2328,15 @@
         // Check if this is actually a new image (different from last loaded)
         if (this.lastLoadedImageSrc !== latestImage.src) {
           this.lastLoadedImageSrc = latestImage.src;
+
+          // No need to store regions - they should not be affected by loading a background image
+
           // Load the new image as background
           this.loadBackgroundImage(latestImage.src);
+
+          // The loadBackgroundImage method should not clear regions
+          // If regions are somehow cleared, this is a bug that needs investigation
+          // For now, let's not try to restore them as it might mask the real issue
         }
       }
     }
