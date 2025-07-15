@@ -19,6 +19,10 @@
       this.eventBridge = null;
       this.resourceManager = new ResourceManager();
 
+      // Auto-update state management
+      this.autoUpdateEnabled = true; // Default to enabled
+      this.autoUpdateBtn = null;
+
       this.init();
     }
 
@@ -393,6 +397,52 @@
                 gap: 8px;
                 flex-wrap: wrap;
             }
+
+            .controls-section {
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .controls-row {
+                display: flex;
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+                gap: 16px;
+            }
+
+            .controls-section .button-group {
+                justify-content: flex-start;
+            }
+
+            .controls-section .image-controls {
+                justify-content: flex-end;
+            }
+
+            .btn.auto-update-unlocked {
+                background: var(--button-secondary-background-fill);
+                color: #000000 !important;
+                border-color: var(--button-secondary-border-color);
+            }
+
+            .btn.auto-update-unlocked:hover {
+                background: var(--button-secondary-background-fill-hover);
+                color: #000000 !important;
+                border-color: var(--button-secondary-border-color-hover);
+            }
+
+            .btn.auto-update-locked {
+                background: var(--button-cancel-background-fill);
+                color: #000000 !important;
+                border-color: var(--button-cancel-border-color);
+            }
+
+            .btn.auto-update-locked:hover {
+                background: var(--button-cancel-background-fill-hover);
+                color: #000000 !important;
+                border-color: var(--button-cancel-border-color-hover);
+            }
             
             .btn {
                 padding: var(--button-small-padding);
@@ -506,11 +556,18 @@
             </div>
 
             <div class="controls-section">
-                <div class="button-group">
-                    <button class="btn" id="clear-all-btn">Clear All</button>
-                    <button class="btn" id="reset-default-btn">Default Mapping</button>
-                    <button class="btn" id="export-config-btn">Export Config</button>
-                    <button class="btn" id="import-config-btn">Import Config</button>
+                <div class="controls-row">
+                    <div class="button-group">
+                        <button class="btn" id="clear-all-btn">Clear All</button>
+                        <button class="btn" id="reset-default-btn">Default Mapping</button>
+                        <button class="btn" id="import-config-btn">Import Config</button>
+                        <button class="btn" id="export-config-btn">Export Config</button>
+                    </div>
+                    <div class="button-group image-controls">
+                        <button class="btn" id="load-image-btn">📂 Load Image</button>
+                        <button class="btn" id="clear-image-btn">🗑️ Clear Image</button>
+                        <button class="btn" id="auto-update-btn">🔓 Auto-Update</button>
+                    </div>
                 </div>
 
                 <div class="region-table-container">
@@ -570,6 +627,26 @@
 
       this.resourceManager.addEventListener(importBtn, "click", () => {
         this.importConfiguration();
+      });
+
+      // Image control buttons
+      this.autoUpdateBtn = shadowRoot.getElementById("auto-update-btn");
+      const loadImageBtn = shadowRoot.getElementById("load-image-btn");
+      const clearImageBtn = shadowRoot.getElementById("clear-image-btn");
+
+      // Initialize auto-update button state
+      this.updateAutoUpdateButton();
+
+      this.resourceManager.addEventListener(this.autoUpdateBtn, "click", () => {
+        this.toggleAutoUpdate();
+      });
+
+      this.resourceManager.addEventListener(loadImageBtn, "click", () => {
+        this.handleLoadImage();
+      });
+
+      this.resourceManager.addEventListener(clearImageBtn, "click", () => {
+        this.handleClearImage();
       });
     }
 
@@ -647,6 +724,54 @@
       };
 
       input.click();
+    }
+
+    handleLoadImage() {
+      // Create file input for image loading
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+
+      input.onchange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            this.forgeCoupleInstance.loadBackgroundImage(e.target.result);
+          };
+          reader.readAsDataURL(file);
+        }
+      };
+
+      input.click();
+    }
+
+    handleClearImage() {
+      this.forgeCoupleInstance.clearBackgroundImage();
+    }
+
+    toggleAutoUpdate() {
+      this.autoUpdateEnabled = !this.autoUpdateEnabled;
+      this.updateAutoUpdateButton();
+
+      // Notify forge couple instance of state change
+      if (this.forgeCoupleInstance) {
+        this.forgeCoupleInstance.setAutoUpdateEnabled(this.autoUpdateEnabled);
+      }
+    }
+
+    updateAutoUpdateButton() {
+      if (!this.autoUpdateBtn) return;
+
+      if (this.autoUpdateEnabled) {
+        this.autoUpdateBtn.textContent = "🔓 Auto-Update";
+        this.autoUpdateBtn.className = "btn auto-update-unlocked";
+        this.autoUpdateBtn.title = "Auto-update enabled - Click to lock";
+      } else {
+        this.autoUpdateBtn.textContent = "🔒 Locked";
+        this.autoUpdateBtn.className = "btn auto-update-locked";
+        this.autoUpdateBtn.title = "Auto-update locked - Click to enable";
+      }
     }
 
     destroy() {

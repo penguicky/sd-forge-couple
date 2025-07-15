@@ -24,6 +24,12 @@
       this.selectedRegion = null;
       this.nextRegionId = 1;
 
+      // Background image management
+      this.backgroundImage = null;
+      this.backgroundImageData = null;
+      this.autoUpdateEnabled = true; // Default to enabled
+      this.imageGenerationObserver = null;
+
       // Interaction state
       this.dragState = {
         isDragging: false,
@@ -66,6 +72,7 @@
       this.setupResolutionWatcher();
       this.setupPromptWatcher();
       this.setupBackendIntegration();
+      this.setupAutoImageUpdate();
       this.initializeDefaultRegions();
     }
 
@@ -1212,6 +1219,9 @@
       // Clear canvas
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
+      // Draw background image if loaded
+      this.drawBackgroundImage();
+
       // Draw background grid (optional)
       this.drawGrid();
 
@@ -1249,6 +1259,40 @@
         this.ctx.lineTo(this.canvas.width, y);
         this.ctx.stroke();
       }
+    }
+
+    drawBackgroundImage() {
+      if (!this.backgroundImage) return;
+
+      // Calculate scaling to fit canvas while maintaining aspect ratio
+      const canvasAspect = this.canvas.width / this.canvas.height;
+      const imageAspect =
+        this.backgroundImage.width / this.backgroundImage.height;
+
+      let drawWidth, drawHeight, drawX, drawY;
+
+      if (imageAspect > canvasAspect) {
+        // Image is wider than canvas aspect ratio
+        drawWidth = this.canvas.width;
+        drawHeight = this.canvas.width / imageAspect;
+        drawX = 0;
+        drawY = (this.canvas.height - drawHeight) / 2;
+      } else {
+        // Image is taller than canvas aspect ratio
+        drawWidth = this.canvas.height * imageAspect;
+        drawHeight = this.canvas.height;
+        drawX = (this.canvas.width - drawWidth) / 2;
+        drawY = 0;
+      }
+
+      // Draw the background image
+      this.ctx.drawImage(
+        this.backgroundImage,
+        drawX,
+        drawY,
+        drawWidth,
+        drawHeight
+      );
     }
 
     drawRegion(region) {
@@ -2121,6 +2165,123 @@
       }
     }
 
+    loadBackgroundImage(imageDataUrl) {
+      const img = new Image();
+      img.onload = () => {
+        // Resize image if too large (following original implementation)
+        const maxDim = 1024 * 1024;
+        let width = img.width;
+        let height = img.height;
+
+        if (width * height > maxDim) {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+
+          while (width * height > maxDim) {
+            width = Math.round(width / 2);
+            height = Math.round(height / 2);
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Create new image from resized canvas
+          const resizedImg = new Image();
+          resizedImg.onload = () => {
+            this.backgroundImage = resizedImg;
+            this.backgroundImageData = canvas.toDataURL("image/jpeg");
+            this.updateCanvas();
+          };
+          resizedImg.src = canvas.toDataURL("image/jpeg");
+        } else {
+          this.backgroundImage = img;
+          this.backgroundImageData = imageDataUrl;
+          this.updateCanvas();
+        }
+      };
+      img.src = imageDataUrl;
+    }
+
+    clearBackgroundImage() {
+      this.backgroundImage = null;
+      this.backgroundImageData = null;
+      this.updateCanvas();
+    }
+
+    setAutoUpdateEnabled(enabled) {
+      this.autoUpdateEnabled = enabled;
+    }
+
+    setupAutoImageUpdate() {
+      // Only set up auto-update for txt2img mode
+      if (this.mode !== "t2i") return;
+
+      // Set up mutation observer to watch for new images in txt2img gallery
+      this.setupImageGenerationObserver();
+    }
+
+    setupImageGenerationObserver() {
+      // Find the txt2img gallery container
+      const txt2imgGallery = document.querySelector("#txt2img_gallery");
+      if (!txt2imgGallery) {
+        // Retry after a delay if gallery not found yet
+        setTimeout(() => this.setupImageGenerationObserver(), 1000);
+        return;
+      }
+
+      // Create mutation observer to watch for new images
+      this.imageGenerationObserver = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.type === "childList" && mutation.addedNodes.length > 0) {
+            // Check if new images were added
+            mutation.addedNodes.forEach((node) => {
+              if (node.nodeType === Node.ELEMENT_NODE) {
+                const newImages = node.querySelectorAll
+                  ? node.querySelectorAll("img")
+                  : [];
+                if (newImages.length > 0 || node.tagName === "IMG") {
+                  // New image detected, update background if auto-update is enabled
+                  setTimeout(() => this.handleNewImageGenerated(), 500);
+                }
+              }
+            });
+          }
+        });
+      });
+
+      // Start observing the gallery
+      this.imageGenerationObserver.observe(txt2imgGallery, {
+        childList: true,
+        subtree: true,
+      });
+    }
+
+    handleNewImageGenerated() {
+      if (!this.autoUpdateEnabled) return;
+
+      // Get the latest generated image from txt2img gallery
+      const latestImage = this.getLatestGeneratedImage();
+      if (latestImage && latestImage.src && latestImage.src !== "data:,") {
+        // Load the new image as background
+        this.loadBackgroundImage(latestImage.src);
+      }
+    }
+
+    getLatestGeneratedImage() {
+      // Find the txt2img gallery and get the first (latest) image
+      const txt2imgGallery = document.querySelector("#txt2img_gallery");
+      if (!txt2imgGallery) return null;
+
+      // Look for the main gallery image (not thumbnails)
+      const mainImage =
+        txt2imgGallery.querySelector('img[data-testid="detailed-image"]') ||
+        txt2imgGallery.querySelector(".gallery img") ||
+        txt2imgGallery.querySelector("img");
+
+      return mainImage;
+    }
+
     exportConfig() {
       return {
         version: "1.0",
@@ -2238,6 +2399,11 @@
       if (this.generationObserver) {
         this.generationObserver.disconnect();
         this.generationObserver = null;
+      }
+
+      if (this.imageGenerationObserver) {
+        this.imageGenerationObserver.disconnect();
+        this.imageGenerationObserver = null;
       }
 
       this.resourceManager.cleanup();
