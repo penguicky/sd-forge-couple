@@ -73,21 +73,27 @@
                 flex-direction: column;
                 gap: 20px;
                 padding: 16px;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                font-size: 14px;
-                color: #333;
-                background: #fff;
+                font-family: var(--font);
+                font-size: var(--text-md);
+                color: var(--body-text-color);
+                background: var(--background-fill-secondary);
                 border-radius: 8px;
                 box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                min-height: fit-content;
+                width: 100%;
+                position: relative;
             }
             
             .canvas-section {
                 position: relative;
                 min-height: 400px;
+                max-height: 500px;
                 display: flex;
                 justify-content: center;
                 align-items: center;
                 padding: 20px;
+                width: 100%;
+                overflow: hidden;
             }
             
             .region-canvas {
@@ -153,27 +159,30 @@
             .region-table-container {
                 width: 100%;
                 overflow-y: auto;
-                max-height: 500px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
+                max-height: 400px;
+                min-height: 200px;
+                border: 1px solid var(--border-color-primary);
+                border-radius: var(--radius-md);
+                flex-shrink: 0;
             }
             
             .region-table {
                 width: 100%;
                 border-collapse: collapse;
-                background: #fff;
-                font-size: 12px;
+                background: var(--background-fill-secondary);
+                font-size: var(--text-sm);
                 font-family: inherit;
             }
 
             .region-table th {
                 padding: 8px 6px;
                 text-align: center;
-                border: 1px solid #ddd;
-                background: #f8f9fa;
+                border: 1px solid var(--border-color-primary);
+                background: var(--background-fill-primary);
                 font-weight: 600;
-                color: #555;
-                font-size: 11px;
+                color: #000000 !important;
+                font-size: var(--text-xs);
+                font-family: var(--font);
                 position: sticky;
                 top: 0;
                 z-index: 5;
@@ -188,18 +197,18 @@
 
             .region-table td.coordinate {
                 width: 60px;
-                font-size: 11px;
+                font-size: var(--text-xs);
             }
 
             .region-table td.weight {
                 width: 50px;
-                font-size: 11px;
+                font-size: var(--text-xs);
             }
 
             .region-table td.prompt {
                 text-align: left;
                 padding-left: 12px;
-                font-size: 12px;
+                font-size: var(--text-sm);
                 min-width: 300px;
             }
 
@@ -214,9 +223,9 @@
             }
             
             .region-table input {
-                background: #fff;
-                border: 1px solid #ccc;
-                color: #333;
+                background: var(--background-fill-secondary);
+                border: 1px solid var(--border-color-primary);
+                color: var(--body-text-color);
                 width: 100%;
                 text-align: inherit;
                 font-family: inherit;
@@ -242,12 +251,13 @@
             .region-table td.prompt input {
                 padding: 8px 12px;
                 min-height: 24px;
-                font-size: 13px;
+                font-size: var(--text-sm);
                 line-height: 1.4;
-                background: #fff;
-                border: 2px solid #ddd;
+                background: var(--background-fill-secondary);
+                border: 2px solid var(--border-color-primary);
                 border-radius: 4px;
                 margin: 2px 0;
+                font-family: var(--font-mono);
             }
 
             .region-table td.prompt input:focus {
@@ -276,33 +286,41 @@
                 right: 0;
                 top: 50%;
                 transform: translateY(-50%);
-                background: #fff;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                padding: 4px;
+                min-width: 120px;
+                background: var(--background-fill-secondary);
+                border: var(--button-border-width) solid var(--border-color-primary);
+                border-radius: var(--radius-md);
+                padding: var(--spacing-xs);
                 display: none;
                 z-index: 10;
-                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+                box-shadow: var(--shadow-drop-lg);
             }
 
             .row-menu button {
                 display: block;
                 width: 100%;
-                padding: 4px 8px;
-                margin: 2px 0;
-                background: #f8f9fa;
-                color: #333;
-                border: 1px solid #ddd;
-                border-radius: 2px;
-                font-size: 10px;
+                padding: var(--spacing-xs) var(--spacing-sm);
+                margin: var(--spacing-xxs) 0;
+                background: var(--button-secondary-background-fill);
+                color: #000000 !important;
+                border: var(--button-border-width) solid var(--button-secondary-border-color);
+                border-radius: var(--radius-sm);
+                font-size: var(--text-xs);
+                font-family: var(--font);
                 cursor: pointer;
                 white-space: nowrap;
+                transition: var(--button-transition);
+                text-align: left;
             }
 
             .row-menu button:hover {
-                background: #007bff;
-                color: #fff;
-                border-color: #007bff;
+                background: var(--button-secondary-background-fill-hover);
+                color: #000000 !important;
+                border-color: var(--button-secondary-border-color-hover);
+            }
+
+            .row-menu button:active {
+                box-shadow: var(--button-shadow-active);
             }
 
             .row-menu-trigger {
@@ -313,12 +331,21 @@
                 width: 24px;
                 background: transparent;
                 cursor: pointer;
-                border-radius: 2px;
+                border-radius: var(--radius-xs);
                 z-index: 5;
+                border: none;
+                transition: var(--button-transition);
+                display: flex;
+                align-items: center;
+                justify-content: center;
             }
 
             .row-menu-trigger:hover {
-                background: rgba(0, 0, 0, 0.08);
+                background: var(--button-secondary-background-fill-hover);
+            }
+
+            .row-menu-trigger:active {
+                background: var(--button-secondary-background-fill);
             }
             
             .color-indicator {
@@ -335,14 +362,30 @@
             }
 
             .action-buttons .btn {
-                margin: 0 1px;
-                padding: 2px 6px;
-                font-size: 10px;
+                margin: 0 var(--spacing-xxs);
+                padding: var(--spacing-xxs) var(--spacing-xs);
+                font-size: var(--text-xxs);
                 min-width: 24px;
                 height: 24px;
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
+                border-radius: var(--radius-xs);
+                background: var(--button-secondary-background-fill);
+                color: #000000 !important;
+                border: var(--button-border-width) solid var(--button-secondary-border-color);
+                transition: var(--button-transition);
+                cursor: pointer;
+            }
+
+            .action-buttons .btn:hover {
+                background: var(--button-secondary-background-fill-hover);
+                color: #000000 !important;
+                border-color: var(--button-secondary-border-color-hover);
+            }
+
+            .action-buttons .btn:active {
+                box-shadow: var(--button-shadow-active);
             }
             
             .button-group {
@@ -352,48 +395,67 @@
             }
             
             .btn {
-                padding: 6px 12px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                background: #fff;
-                color: #333;
+                padding: var(--button-small-padding);
+                border: var(--button-border-width) solid var(--button-secondary-border-color);
+                border-radius: var(--button-small-radius);
+                background: var(--button-secondary-background-fill);
+                color: #000000 !important;
                 cursor: pointer;
-                font-size: 12px;
-                transition: all 0.2s;
+                font-size: var(--button-small-text-size);
+                font-weight: var(--button-small-text-weight);
+                font-family: var(--font);
+                transition: var(--button-transition);
+                box-shadow: var(--button-shadow);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                min-width: fit-content;
             }
-            
+
             .btn:hover {
-                background: #f8f9fa;
-                border-color: #007bff;
+                background: var(--button-secondary-background-fill-hover);
+                color: #000000 !important;
+                border-color: var(--button-secondary-border-color-hover);
+                box-shadow: var(--button-shadow-hover);
             }
-            
+
             .btn:active {
-                background: #e9ecef;
+                box-shadow: var(--button-shadow-active);
             }
-            
+
             .btn.primary {
-                background: #007bff;
-                color: #fff;
-                border-color: #007bff;
+                background: var(--button-primary-background-fill);
+                color: #000000 !important;
+                border-color: var(--button-primary-border-color);
             }
-            
+
             .btn.primary:hover {
-                background: #0056b3;
+                background: var(--button-primary-background-fill-hover);
+                color: #000000 !important;
+                border-color: var(--button-primary-border-color-hover);
             }
-            
+
             .btn.danger {
-                background: #dc3545;
-                color: #fff;
-                border-color: #dc3545;
+                background: var(--button-cancel-background-fill);
+                color: #000000 !important;
+                border-color: var(--button-cancel-border-color);
             }
-            
+
             .btn.danger:hover {
-                background: #c82333;
+                background: var(--button-cancel-background-fill-hover);
+                color: #000000 !important;
+                border-color: var(--button-cancel-border-color-hover);
             }
-            
+
             .btn:disabled {
                 opacity: 0.6;
                 cursor: not-allowed;
+            }
+
+            .btn:focus {
+                outline: none;
+                box-shadow: var(--button-shadow-hover);
             }
             
             .toolbar {
@@ -407,15 +469,15 @@
             
             .toolbar h3 {
                 margin: 0;
-                font-size: 16px;
+                font-size: var(--text-lg);
                 font-weight: 600;
-                color: #333;
+                color: var(--body-text-color);
             }
-            
+
             .status-indicator {
                 padding: 4px 8px;
                 border-radius: 12px;
-                font-size: 11px;
+                font-size: var(--text-xs);
                 font-weight: 500;
             }
             

@@ -1284,19 +1284,23 @@
         );
       }
 
-      // Label with background for better visibility
-      this.ctx.fillStyle = region.color;
-      this.ctx.font = "bold 14px Arial";
-      const labelText = `Region ${region.id}`;
-      const textMetrics = this.ctx.measureText(labelText);
+      // // Label with background for better visibility
+      // this.ctx.fillStyle = region.color;
+      // // Use lobe-theme compatible font - get CSS variable value or fallback
+      // const fontSize = this.getLobeThemeFontSize() || "14px";
+      // const fontFamily =
+      //   this.getLobeThemeFontFamily() || "system-ui, -apple-system, sans-serif";
+      // this.ctx.font = `bold ${fontSize} ${fontFamily}`;
+      // const labelText = `Region ${region.id}`;
+      // const textMetrics = this.ctx.measureText(labelText);
 
-      // Label background
-      this.ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-      this.ctx.fillRect(x + 5, y + 5, textMetrics.width + 6, 20);
+      // // Label background
+      // this.ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+      // this.ctx.fillRect(x + 5, y + 5, textMetrics.width + 6, 20);
 
-      // Label text
-      this.ctx.fillStyle = region.color;
-      this.ctx.fillText(labelText, x + 8, y + 20);
+      // // Label text
+      // this.ctx.fillStyle = region.color;
+      // this.ctx.fillText(labelText, x + 8, y + 20);
     }
 
     drawSelectionHandles(region) {
@@ -2149,6 +2153,41 @@
 
     clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
+    }
+
+    // Helper methods to get lobe-theme font values
+    getLobeThemeFontSize() {
+      try {
+        // Try to get CSS variable value from document
+        const rootStyles = getComputedStyle(document.documentElement);
+        const textMd = rootStyles.getPropertyValue("--text-md").trim();
+        if (textMd) return textMd;
+
+        // Fallback: try to get from body font-size
+        const bodyFontSize = rootStyles.fontSize;
+        if (bodyFontSize) return bodyFontSize;
+
+        return null;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    getLobeThemeFontFamily() {
+      try {
+        // Try to get CSS variable value from document
+        const rootStyles = getComputedStyle(document.documentElement);
+        const fontFamily = rootStyles.getPropertyValue("--font").trim();
+        if (fontFamily) return fontFamily;
+
+        // Fallback: try to get from body font-family
+        const bodyFontFamily = rootStyles.fontFamily;
+        if (bodyFontFamily) return bodyFontFamily;
+
+        return null;
+      } catch (error) {
+        return null;
+      }
     }
 
     normalizeCoordinates(x1, y1, x2, y2) {

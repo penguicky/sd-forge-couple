@@ -333,6 +333,8 @@
       // HYBRID APPROACH: Hide original UI but keep gradio components functional
       // Hide the original UI visually but keep the gradio components for backend communication
       container.style.position = "relative";
+      container.style.minHeight = "fit-content";
+      container.style.overflow = "visible";
 
       // Hide all visible elements but keep the gradio components
       const visibleElements = container.querySelectorAll(
@@ -360,10 +362,9 @@
       });
 
       // Add our shadow DOM interface on top
-      shadowHost.style.position = "absolute";
-      shadowHost.style.top = "0";
-      shadowHost.style.left = "0";
+      shadowHost.style.position = "relative";
       shadowHost.style.width = "100%";
+      shadowHost.style.minHeight = "fit-content";
       shadowHost.style.zIndex = "10";
 
       container.appendChild(shadowHost);
