@@ -99,10 +99,16 @@
                 cursor: crosshair;
                 position: relative;
                 overflow: hidden;
+                outline: none !important; /* Remove focus outline */
+                box-shadow: none !important; /* Remove any box shadow */
             }
-            
+
+            .region-canvas:focus,
+            .region-canvas:active,
             .region-canvas:hover {
-                border-color: #007bff;
+                outline: none !important; /* Ensure no focus styling */
+                border-color: #ddd !important; /* Keep original border color */
+                box-shadow: none !important; /* Remove any highlight effects */
             }
             
             .bounding-box {
@@ -433,7 +439,7 @@
             </div>
 
             <div class="canvas-section">
-                <canvas id="region-canvas" class="region-canvas"></canvas>
+                <canvas id="region-canvas" class="region-canvas" tabindex="-1"></canvas>
                 <div id="canvas-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;"></div>
             </div>
 
@@ -443,7 +449,6 @@
                     <button class="btn" id="reset-default-btn">Default Mapping</button>
                     <button class="btn" id="export-config-btn">Export Config</button>
                     <button class="btn" id="import-config-btn">Import Config</button>
-                    <button class="btn debug" id="sync-backend-btn">🔄 Sync Backend</button>
                 </div>
 
                 <div class="region-table-container">
@@ -503,36 +508,6 @@
 
       this.resourceManager.addEventListener(importBtn, "click", () => {
         this.importConfiguration();
-      });
-
-      // Sync backend button (debug)
-      const syncBackendBtn = shadowRoot.getElementById("sync-backend-btn");
-      this.resourceManager.addEventListener(syncBackendBtn, "click", () => {
-        this.forgeCoupleInstance.forceSyncToBackend();
-
-        // Also log current state for debugging
-        const regions = this.forgeCoupleInstance.getRegions();
-
-        // Check if forge-couple components are found
-        const accordion = document.querySelector(
-          `#forge_couple_${this.mode === "t2i" ? "t2i" : "i2i"}`
-        );
-
-        if (accordion) {
-          const inputs = accordion.querySelectorAll("input, textarea");
-
-          inputs.forEach((input, i) => {
-            const computedStyle = window.getComputedStyle(input);
-          });
-
-          // Show which components our sync logic found
-
-          if (this.forgeCoupleInstance.mappingComponent) {
-          }
-
-          if (this.forgeCoupleInstance.entryField) {
-          }
-        }
       });
     }
 

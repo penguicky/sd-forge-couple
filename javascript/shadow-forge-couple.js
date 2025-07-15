@@ -35,18 +35,19 @@
 
       // Color palette for regions
       this.colorPalette = [
-        "#FF6B6B",
-        "#4ECDC4",
-        "#45B7D1",
-        "#96CEB4",
-        "#FFEAA7",
-        "#DDA0DD",
-        "#98D8C8",
-        "#F7DC6F",
-        "#BB8FCE",
-        "#85C1E9",
-        "#F8C471",
-        "#82E0AA",
+        "#ffffffff",
+        "#ff0000ff",
+        "#0066ffff",
+        "#00d0ffff",
+        "#00ff88ff",
+        "#ffc400ff",
+        "#ff00ffff",
+        "#00ffbfff",
+        "#ffcc00ff",
+        "#b300ffff",
+        "#0099ffff",
+        "#ff0073ff",
+        "#91001bff",
       ];
 
       this.init();
@@ -70,18 +71,32 @@
 
     setupCanvasDimensions() {
       // Try to get resolution from WebUI settings
-      const width = this.getWebUIWidth() || 512;
-      const height = this.getWebUIHeight() || 512;
+      const webuiWidth = this.getWebUIWidth() || 512;
+      const webuiHeight = this.getWebUIHeight() || 512;
+      const aspectRatio = webuiWidth / webuiHeight;
 
-      // Set internal canvas dimensions to match aspect ratio
-      this.canvas.width = width;
-      this.canvas.height = height;
+      // Use fixed canvas size that maintains aspect ratio
+      // This is more efficient than full resolution
+      const maxCanvasSize = 800;
+      let canvasWidth, canvasHeight;
+
+      if (aspectRatio > 1) {
+        // Landscape: width is larger
+        canvasWidth = maxCanvasSize;
+        canvasHeight = maxCanvasSize / aspectRatio;
+      } else {
+        // Portrait or square: height is larger or equal
+        canvasHeight = maxCanvasSize;
+        canvasWidth = maxCanvasSize * aspectRatio;
+      }
+
+      // Set internal canvas dimensions
+      this.canvas.width = canvasWidth;
+      this.canvas.height = canvasHeight;
 
       // Set display size to fit container while maintaining aspect ratio
       const maxDisplayWidth = 600;
       const maxDisplayHeight = 400;
-
-      const aspectRatio = width / height;
       let displayWidth, displayHeight;
 
       if (aspectRatio > maxDisplayWidth / maxDisplayHeight) {
@@ -150,6 +165,7 @@
       // Mouse events for region creation and manipulation
       this.resourceManager.addEventListener(this.canvas, "mousedown", (e) => {
         e.preventDefault(); // Prevent canvas from taking focus
+        this.canvas.blur(); // Ensure canvas doesn't get focus
         this.handleMouseDown(e);
       });
 
@@ -306,15 +322,21 @@
     }
 
     setupResolutionWatcher() {
+      // Store current WebUI resolution for comparison
+      this.lastWebuiWidth = this.getWebUIWidth() || 512;
+      this.lastWebuiHeight = this.getWebUIHeight() || 512;
+
       // Watch for changes in WebUI resolution sliders
       const watchResolution = () => {
-        const currentWidth = this.getWebUIWidth();
-        const currentHeight = this.getWebUIHeight();
+        const currentWidth = this.getWebUIWidth() || 512;
+        const currentHeight = this.getWebUIHeight() || 512;
 
         if (
-          currentWidth !== this.canvas.width ||
-          currentHeight !== this.canvas.height
+          currentWidth !== this.lastWebuiWidth ||
+          currentHeight !== this.lastWebuiHeight
         ) {
+          this.lastWebuiWidth = currentWidth;
+          this.lastWebuiHeight = currentHeight;
           this.setupCanvasDimensions();
           this.updateCanvas();
         }
@@ -1235,20 +1257,31 @@
       const width = (region.x2 - region.x1) * this.canvas.width;
       const height = (region.y2 - region.y1) * this.canvas.height;
 
-      // Fill
-      this.ctx.fillStyle = region.color + "20"; // 20% opacity
-      this.ctx.fillRect(x, y, width, height);
+      // Draw internal border only (inside the region boundaries)
+      const borderWidth = region === this.selectedRegion ? 12 : 8;
+      const halfBorder = borderWidth / 2;
 
-      // Much thicker and more pronounced border
       this.ctx.strokeStyle = region.color;
-      this.ctx.lineWidth = region === this.selectedRegion ? 6 : 4; // Much thicker borders
-      this.ctx.strokeRect(x, y, width, height);
+      this.ctx.lineWidth = borderWidth;
 
-      // Add inner border for even more prominence
+      // Draw border inside the region boundaries
+      this.ctx.strokeRect(
+        x + halfBorder,
+        y + halfBorder,
+        width - borderWidth,
+        height - borderWidth
+      );
+
+      // Add additional inner border for selected region
       if (region === this.selectedRegion) {
         this.ctx.strokeStyle = region.color + "80"; // Semi-transparent inner border
         this.ctx.lineWidth = 2;
-        this.ctx.strokeRect(x + 3, y + 3, width - 6, height - 6);
+        this.ctx.strokeRect(
+          x + borderWidth + 2,
+          y + borderWidth + 2,
+          width - (borderWidth + 2) * 2,
+          height - (borderWidth + 2) * 2
+        );
       }
 
       // Label with background for better visibility
@@ -1332,22 +1365,7 @@
       const x = canvasX / this.canvas.width;
       const y = canvasY / this.canvas.height;
 
-      // Check if clicking on any region for selection
-      const clickedRegion = this.getRegionAt(x, y);
-
-      if (
-        clickedRegion &&
-        (!this.selectedRegion || clickedRegion.id !== this.selectedRegion.id)
-      ) {
-        // Select the clicked region
-        this.selectRegion(clickedRegion);
-        this.updateCanvas();
-        this.updateTable();
-
-        return;
-      }
-
-      // If no region selected, ignore manipulation
+      // Only allow manipulation if a region is selected from the table
       if (!this.selectedRegion) {
         return;
       }
@@ -1505,27 +1523,81 @@
       const initial = this.dragState.initialRegion;
       const resizeType = this.dragState.dragType;
 
-      // Apply resize based on type
-      if (resizeType.includes("n"))
-        region.y1 = Math.max(
-          0,
-          Math.min(initial.y2 - 0.05, initial.y1 + deltaY)
-        );
-      if (resizeType.includes("s"))
-        region.y2 = Math.min(
-          1,
-          Math.max(initial.y1 + 0.05, initial.y2 + deltaY)
-        );
-      if (resizeType.includes("w"))
-        region.x1 = Math.max(
-          0,
-          Math.min(initial.x2 - 0.05, initial.x1 + deltaX)
-        );
-      if (resizeType.includes("e"))
-        region.x2 = Math.min(
-          1,
-          Math.max(initial.x1 + 0.05, initial.x2 + deltaX)
-        );
+      // Apply resize based on handle type with proper anchor points
+      switch (resizeType) {
+        // Corner handles - opposite corner stays fixed
+        case "nw-resize":
+          // Anchor at SE corner (x2, y2 fixed)
+          region.x1 = initial.x1 + deltaX;
+          region.y1 = initial.y1 + deltaY;
+          break;
+        case "ne-resize":
+          // Anchor at SW corner (x1, y2 fixed)
+          region.x2 = initial.x2 + deltaX;
+          region.y1 = initial.y1 + deltaY;
+          break;
+        case "sw-resize":
+          // Anchor at NE corner (x2, y1 fixed)
+          region.x1 = initial.x1 + deltaX;
+          region.y2 = initial.y2 + deltaY;
+          break;
+        case "se-resize":
+          // Anchor at NW corner (x1, y1 fixed)
+          region.x2 = initial.x2 + deltaX;
+          region.y2 = initial.y2 + deltaY;
+          break;
+
+        // Edge handles - opposite edge stays fixed
+        case "n-resize":
+          // Anchor at bottom edge (y2 fixed)
+          region.y1 = initial.y1 + deltaY;
+          break;
+        case "s-resize":
+          // Anchor at top edge (y1 fixed)
+          region.y2 = initial.y2 + deltaY;
+          break;
+        case "w-resize":
+          // Anchor at right edge (x2 fixed)
+          region.x1 = initial.x1 + deltaX;
+          break;
+        case "e-resize":
+          // Anchor at left edge (x1 fixed)
+          region.x2 = initial.x2 + deltaX;
+          break;
+      }
+
+      // Apply bounds checking to ensure regions stay within canvas (0.0-1.0)
+      region.x1 = Math.max(0, Math.min(1, region.x1));
+      region.x2 = Math.max(0, Math.min(1, region.x2));
+      region.y1 = Math.max(0, Math.min(1, region.y1));
+      region.y2 = Math.max(0, Math.min(1, region.y2));
+
+      // Ensure coordinates are in correct order (x1 < x2, y1 < y2)
+      if (region.x1 >= region.x2) {
+        const temp = region.x1;
+        region.x1 = region.x2;
+        region.x2 = temp;
+      }
+      if (region.y1 >= region.y2) {
+        const temp = region.y1;
+        region.y1 = region.y2;
+        region.y2 = temp;
+      }
+
+      // Maintain minimum size constraint of 0.05
+      const width = region.x2 - region.x1;
+      const height = region.y2 - region.y1;
+
+      if (width < 0.05) {
+        const center = (region.x1 + region.x2) / 2;
+        region.x1 = center - 0.025;
+        region.x2 = center + 0.025;
+      }
+      if (height < 0.05) {
+        const center = (region.y1 + region.y2) / 2;
+        region.y1 = center - 0.025;
+        region.y2 = center + 0.025;
+      }
 
       this.updateTableRow(region);
       this.autoSyncToBackend(); // Auto-sync when region is resized via drag
@@ -1533,7 +1605,7 @@
 
     getRegionAt(x, y) {
       // Find region at coordinates (in normalized 0-1 space)
-      // Used for cursor updates and resize handle detection
+      // Returns any region that contains the point (for selection purposes)
       return this.regions.find(
         (region) =>
           x >= region.x1 && x <= region.x2 && y >= region.y1 && y <= region.y2
@@ -1577,8 +1649,9 @@
       const x = canvasX / this.canvas.width;
       const y = canvasY / this.canvas.height;
 
-      // Priority 1: Check if hovering over selected region's resize handles
+      // Only show interactive cursors for the selected region
       if (this.selectedRegion) {
+        // Check if hovering over selected region's resize handles
         const selectedResizeType = this.getResizeType(
           this.selectedRegion,
           canvasX,
@@ -1588,24 +1661,16 @@
           this.canvas.style.cursor = selectedResizeType;
           return;
         }
+
+        // Check if hovering over selected region (for move)
+        if (this.isPointInRegion(this.selectedRegion, x, y)) {
+          this.canvas.style.cursor = "move";
+          return;
+        }
       }
 
-      // Priority 2: Check if hovering over selected region (for move)
-      if (
-        this.selectedRegion &&
-        this.isPointInRegion(this.selectedRegion, x, y)
-      ) {
-        this.canvas.style.cursor = "move";
-        return;
-      }
-
-      // Priority 3: Check other regions
-      const hoveredRegion = this.getRegionAt(x, y);
-      if (hoveredRegion) {
-        this.canvas.style.cursor = "pointer"; // Indicate clickable but not selected
-      } else {
-        this.canvas.style.cursor = "crosshair";
-      }
+      // Default cursor for all other areas (including non-selected regions)
+      this.canvas.style.cursor = "crosshair";
     }
 
     isPointInRegion(region, x, y) {
