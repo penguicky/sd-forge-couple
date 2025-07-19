@@ -13,6 +13,7 @@ from lib_couple.mapping import (
     empty_tensor,
     mask_mapping,
 )
+from lib_couple.performance_optimizations import cleanup_memory_manager
 from lib_couple.tile_funcs import calculate_tiles
 from lib_couple.ui import couple_ui
 from lib_couple.ui_funcs import validate_mapping
@@ -329,6 +330,14 @@ class ForgeCouple(scripts.Script):
         if isA1111:
             self._unpatch()
 
+        # Trigger memory cleanup after processing
+        from lib_couple.performance_optimizations import get_memory_manager
+        memory_manager = get_memory_manager()
+        memory_manager.periodic_cleanup()
+
     @classmethod
     def _unpatch(cls):
         cls.forgeAttentionCouple.unpatch(shared.sd_model.model.diffusion_model)
+
+        # Force cleanup when unpatching
+        cleanup_memory_manager()
