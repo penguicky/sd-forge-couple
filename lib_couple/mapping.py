@@ -6,8 +6,6 @@ import torch
 from modules.prompt_parser import SdConditioning
 from PIL import Image
 
-from lib_couple.performance_optimizations import get_memory_manager
-
 
 def empty_tensor(h: int, w: int):
     return torch.zeros((h, w)).unsqueeze(0)
@@ -27,28 +25,16 @@ def basic_mapping(
 ) -> dict:
     fc_args: dict = {}
 
-    memory_manager = get_memory_manager()
-
     for tile in range(line_count):
-        # ===== Cond with Caching =====
-        prompt = couples[tile]
-
-        # Try to get cached conditioning
-        cached_cond = memory_manager.attention_cache.get_conditioning(prompt, width, height)
-        if cached_cond is not None:
-            pos_cond = [[cached_cond["crossattn"]]] if sd_model.is_sdxl else [[cached_cond]]
-        else:
-            # Compute and cache conditioning
-            texts = SdConditioning([prompt], False, width, height, None)
-            cond = sd_model.get_learned_conditioning(texts)
-            memory_manager.attention_cache.store_conditioning(prompt, width, height, cond)
-            pos_cond = [[cond["crossattn"]]] if sd_model.is_sdxl else [[cond]]
-
+        # ===== Cond =====
+        texts = SdConditioning([couples[tile]], False, width, height, None)
+        cond = sd_model.get_learned_conditioning(texts)
+        pos_cond = [[cond["crossattn"]]] if sd_model.is_sdxl else [[cond]]
         fc_args[f"cond_{tile + 1}"] = pos_cond
         # ===== Cond =====
 
-        # ===== Mask with Memory Pool =====
-        mask = memory_manager.get_tensor((height, width))
+        # ===== Mask =====
+        mask = torch.zeros((height, width))
 
         if background == "First Line":
             if tile == 0:
@@ -81,34 +67,21 @@ def advanced_mapping(
     fc_args: dict = {}
     assert len(couples) == len(mapping)
 
-    memory_manager = get_memory_manager()
-
     for tile_index, (x1, x2, y1, y2, w) in enumerate(mapping):
-        # ===== Cond with Caching =====
-        prompt = couples[tile_index]
-
-        # Try to get cached conditioning
-        cached_cond = memory_manager.attention_cache.get_conditioning(prompt, width, height)
-        if cached_cond is not None:
-            pos_cond = [[cached_cond["crossattn"]]] if sd_model.is_sdxl else [[cached_cond]]
-        else:
-            # Compute and cache conditioning
-            texts = SdConditioning([prompt], False, width, height, None)
-            cond = sd_model.get_learned_conditioning(texts)
-            memory_manager.attention_cache.store_conditioning(prompt, width, height, cond)
-            pos_cond = [[cond["crossattn"]]] if sd_model.is_sdxl else [[cond]]
-
+        # ===== Cond =====
+        texts = SdConditioning([couples[tile_index]], False, width, height, None)
+        cond = sd_model.get_learned_conditioning(texts)
+        pos_cond = [[cond["crossattn"]]] if sd_model.is_sdxl else [[cond]]
         fc_args[f"cond_{tile_index + 1}"] = pos_cond
         # ===== Cond =====
 
-        # ===== Mask with Memory Pool =====
+        # ===== Mask =====
         x_from = int(width * x1)
         x_to = int(width * x2)
         y_from = int(height * y1)
         y_to = int(height * y2)
 
-        # Use memory manager for mask tensor
-        mask = memory_manager.get_tensor((height, width))
+        mask = torch.zeros((height, width))
         mask[y_from:y_to, x_from:x_to] = w
         fc_args[f"mask_{tile_index + 1}"] = mask.unsqueeze(0)
         # ===== Mask =====
@@ -149,28 +122,16 @@ def mask_mapping(
         b64image2tensor(m["mask"], width, height) * float(m["weight"]) for m in mapping
     ]
 
-    memory_manager = get_memory_manager()
-
     for layer in range(line_count):
-        # ===== Cond with Caching =====
-        prompt = couples[layer]
-
-        # Try to get cached conditioning
-        cached_cond = memory_manager.attention_cache.get_conditioning(prompt, width, height)
-        if cached_cond is not None:
-            pos_cond = [[cached_cond["crossattn"]]] if sd_model.is_sdxl else [[cached_cond]]
-        else:
-            # Compute and cache conditioning
-            texts = SdConditioning([prompt], False, width, height, None)
-            cond = sd_model.get_learned_conditioning(texts)
-            memory_manager.attention_cache.store_conditioning(prompt, width, height, cond)
-            pos_cond = [[cond["crossattn"]]] if sd_model.is_sdxl else [[cond]]
-
+        # ===== Cond =====
+        texts = SdConditioning([couples[layer]], False, width, height, None)
+        cond = sd_model.get_learned_conditioning(texts)
+        pos_cond = [[cond["crossattn"]]] if sd_model.is_sdxl else [[cond]]
         fc_args[f"cond_{layer + 1}"] = pos_cond
         # ===== Cond =====
 
-        # ===== Mask with Memory Pool =====
-        mask = memory_manager.get_tensor((height, width))
+        # ===== Mask =====
+        mask = torch.zeros((height, width))
 
         if background == "First Line":
             mask = (
