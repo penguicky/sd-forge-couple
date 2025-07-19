@@ -143,10 +143,7 @@
       "ForgeCoupleDirectInterface",
     ];
 
-    // Debug: Log what's available
-    requiredClasses.forEach((className) => {
-      const available = typeof window[className] !== "undefined";
-    });
+
 
     const missingClasses = requiredClasses.filter(
       (className) => typeof window[className] === "undefined"
@@ -171,7 +168,7 @@
     }
 
     // Initialize global event bridge
-    const eventBridge = EventBridge.getInstance();
+    const eventBridge = window.EventBridge.getInstance();
     eventBridge.setDebugMode(false); // Set to true for debugging
 
     // Initialize backend bridge
@@ -321,6 +318,26 @@
    * Replace original forge-couple advanced mode with Shadow DOM version
    */
   function replaceForgeCoupleAdvancedMode() {
+    // Ensure ForgeCouple global exists before creating shadow containers
+    if (!window.ForgeCouple) {
+      window.ForgeCouple = {
+        dataframe: {
+          t2i: { body: document.createElement('tbody') },
+          i2i: { body: document.createElement('tbody') }
+        },
+        entryField: {
+          t2i: document.createElement('input'),
+          i2i: document.createElement('input')
+        },
+        onEntry: () => {
+          // Silent operation to prevent feedback loops
+        },
+        preview: () => {
+          // Silent operation to prevent feedback loops
+        }
+      };
+    }
+
     const containers = findForgeCoupleContainers();
 
     Object.entries(containers).forEach(([mode, container]) => {
@@ -460,7 +477,7 @@
         isLoaded = true;
 
         // Emit initialization complete event
-        const eventBridge = EventBridge.getInstance();
+        const eventBridge = window.EventBridge.getInstance();
         eventBridge.emit("shadow-dom:initialized", {
           timestamp: Date.now(),
           lobeThemeActive: true,

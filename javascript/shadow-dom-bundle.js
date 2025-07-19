@@ -270,100 +270,75 @@
     constructor(mode) {
       this.mode = mode; // 't2i' or 'i2i'
       this.isReady = false;
+
+      // Ensure ForgeCouple global exists immediately
+      this.ensureForgeCouple();
+
+      // Initialize interface immediately
       this.initializeInterface();
     }
 
     /**
-     * Initialize and wait for ForgeCouple to be available
+     * Ensure ForgeCouple global object exists
      */
-    initializeInterface() {
-      // Check if ForgeCouple is already available
-      if (window.ForgeCouple && window.ForgeCouple.dataframe && window.ForgeCouple.dataframe[this.mode]) {
-        this.isReady = true;
-        return;
-      }
-
-      // Create minimal ForgeCouple structure if it doesn't exist
-      // The original extension doesn't always create a global ForgeCouple object
+    ensureForgeCouple() {
       if (!window.ForgeCouple) {
         this.createMinimalForgeCouple();
-        this.isReady = true;
-        return;
       }
+    }
 
-      // Wait for ForgeCouple to be initialized (fallback)
-      const checkInterval = setInterval(() => {
-        if (window.ForgeCouple &&
-            window.ForgeCouple.dataframe &&
-            window.ForgeCouple.dataframe[this.mode]) {
-          this.isReady = true;
-          clearInterval(checkInterval);
-        }
-      }, 100);
+    /**
+     * Initialize interface immediately
+     */
+    initializeInterface() {
+      // Ensure ForgeCouple structure is complete
+      this.createMinimalForgeCouple();
 
-      // Timeout after 5 seconds, then create minimal structure
-      setTimeout(() => {
-        clearInterval(checkInterval);
-        if (!this.isReady) {
-          this.createMinimalForgeCouple();
-          this.isReady = true;
-        }
-      }, 5000);
+      // Mark as ready immediately
+      this.isReady = true;
     }
 
     /**
      * Create minimal ForgeCouple structure for direct interface operation
      */
     createMinimalForgeCouple() {
-      window.ForgeCouple = {
-        dataframe: {
-          t2i: { body: document.createElement('tbody') },
-          i2i: { body: document.createElement('tbody') }
-        },
-        entryField: {
+      // Only create if it doesn't exist, or enhance existing structure
+      if (!window.ForgeCouple) {
+        window.ForgeCouple = {};
+      }
+
+      // Ensure dataframe structure exists
+      if (!window.ForgeCouple.dataframe) {
+        window.ForgeCouple.dataframe = {};
+      }
+
+      // Ensure mode-specific dataframes exist
+      if (!window.ForgeCouple.dataframe.t2i) {
+        window.ForgeCouple.dataframe.t2i = { body: document.createElement('tbody') };
+      }
+      if (!window.ForgeCouple.dataframe.i2i) {
+        window.ForgeCouple.dataframe.i2i = { body: document.createElement('tbody') };
+      }
+
+      // Ensure entryField structure exists
+      if (!window.ForgeCouple.entryField) {
+        window.ForgeCouple.entryField = {
           t2i: document.createElement('input'),
           i2i: document.createElement('input')
-        },
-        onEntry: (mode) => {
-          // Trigger backend sync through existing mechanisms
-          this.triggerBackendSync(mode);
-        },
-        preview: (mode) => {
-          // Update preview if needed
-          this.updatePreview(mode);
-        }
-      };
-    }
-
-    /**
-     * Trigger backend sync through existing forge-couple mechanisms
-     */
-    triggerBackendSync(mode) {
-      // Find and trigger existing forge-couple sync mechanisms
-      const accordion = document.querySelector(`#forge_couple_${mode}`);
-      if (accordion) {
-        // Trigger change events on relevant components
-        const inputs = accordion.querySelectorAll('input, textarea, select');
-        inputs.forEach(input => {
-          if (input.type !== 'radio' && input.type !== 'checkbox') {
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-        });
+        };
       }
-    }
 
-    /**
-     * Update preview display
-     */
-    updatePreview(mode) {
-      // Trigger any existing preview update mechanisms
-      const previewElements = document.querySelectorAll(`[id*="preview"], [class*="preview"]`);
-      previewElements.forEach(element => {
-        if (element.click && typeof element.click === 'function') {
-          element.click();
-        }
-      });
+      // Ensure methods exist (silent to prevent feedback loops)
+      if (!window.ForgeCouple.onEntry) {
+        window.ForgeCouple.onEntry = () => {
+          // Silent operation to prevent feedback loops
+        };
+      }
+      if (!window.ForgeCouple.preview) {
+        window.ForgeCouple.preview = () => {
+          // Silent operation to prevent feedback loops
+        };
+      }
     }
 
     /**
@@ -408,13 +383,13 @@
           }
         }
 
-        // Call ForgeCouple's update methods
-        if (fc.onEntry) {
+        // Call ForgeCouple's update methods (silent to prevent feedback loops)
+        if (fc.onEntry && typeof fc.onEntry === 'function') {
           fc.onEntry(this.mode);
         }
 
-        // Trigger preview update
-        if (fc.preview) {
+        // Trigger preview update (silent to prevent feedback loops)
+        if (fc.preview && typeof fc.preview === 'function') {
           fc.preview(this.mode);
         }
 

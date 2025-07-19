@@ -86,10 +86,8 @@
      * Initialize direct interface for backend communication
      */
     initializeDirectInterface() {
-      // Wait a bit for ForgeCouple to be ready
-      setTimeout(() => {
-        this.directInterface = new ForgeCoupleDirectInterface(this.mode);
-      }, 1000);
+      // Create direct interface immediately - it will handle ForgeCouple creation and be ready immediately
+      this.directInterface = new ForgeCoupleDirectInterface(this.mode);
     }
 
     setupCanvasDimensions() {
