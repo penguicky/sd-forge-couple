@@ -58,6 +58,10 @@
         "#91001bff",
       ];
 
+      // Initialize direct interface
+      this.directInterface = null;
+      this.initializeDirectInterface();
+
       this.init();
     }
 
@@ -76,6 +80,16 @@
       this.setupBackendIntegration();
       this.setupAutoImageUpdate();
       this.initializeDefaultRegions();
+    }
+
+    /**
+     * Initialize direct interface for backend communication
+     */
+    initializeDirectInterface() {
+      // Wait a bit for ForgeCouple to be ready
+      setTimeout(() => {
+        this.directInterface = new ForgeCoupleDirectInterface(this.mode);
+      }, 1000);
     }
 
     setupCanvasDimensions() {
@@ -575,7 +589,46 @@
       }
     }
 
+    /**
+     * Sync regions to backend using direct interface or fallback to DOM method
+     */
     syncToBackend() {
+      try {
+        // Use direct interface if available
+        if (this.directInterface && this.directInterface.isReady) {
+          // Only sync when in Advanced mode
+          if (!this.directInterface.isAdvancedMode()) {
+            return;
+          }
+
+          // Prepare region data with prompts
+          const regionsWithPrompts = this.regions.map(region => ({
+            x1: region.x1,
+            y1: region.y1,
+            x2: region.x2,
+            y2: region.y2,
+            weight: region.weight,
+            prompt: region.prompt
+          }));
+
+          // Use direct interface to update
+          const success = this.directInterface.updateRegions(regionsWithPrompts);
+
+          if (!success) {
+            // Fallback to DOM method if direct interface fails
+            this.syncToBackendViaDOM();
+          }
+        } else {
+          // Fallback to DOM method if direct interface not ready
+          this.syncToBackendViaDOM();
+        }
+      } catch (error) {
+        // Try fallback on any error
+        this.syncToBackendViaDOM();
+      }
+    }
+
+    syncToBackendViaDOM() {
       try {
         // Convert regions to forge-couple mapping format: [x1, x2, y1, y2, weight]
         const mappingData = this.regions.map((region) => {
@@ -2503,6 +2556,12 @@
       if (this.periodicCheckInterval) {
         clearInterval(this.periodicCheckInterval);
         this.periodicCheckInterval = null;
+      }
+
+      // Clean up direct interface
+      if (this.directInterface) {
+        this.directInterface.destroy();
+        this.directInterface = null;
       }
 
       this.resourceManager.cleanup();

@@ -140,6 +140,7 @@
       "BackendBridge",
       "ShadowForgeCouple",
       "ForgeCoupleAdvancedShadowContainer",
+      "ForgeCoupleDirectInterface",
     ];
 
     // Debug: Log what's available
