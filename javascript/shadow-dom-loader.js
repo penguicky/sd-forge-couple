@@ -10,6 +10,7 @@
   const REMAINING_SCRIPTS = [
     "shadow-forge-couple.js",
     "shadow-dom-container.js",
+    "direct-backend-hook.js",
   ];
 
   // Note: backend-bridge.js, event-bridge.js, and resource-manager.js are included in the bundle

@@ -96,9 +96,6 @@ class ForgeCoupleDirectInterface {
             // Update the mapping component if it exists
             this.updateMappingComponent(regions);
 
-            // Update prompts in the main prompt field
-            this.updatePromptField(regions);
-
             return true;
         } catch (error) {
             console.error('[ForgeCoupleDirectInterface] Error updating regions:', error);
@@ -136,7 +133,7 @@ class ForgeCoupleDirectInterface {
                 region.weight.toFixed(1)
             ];
 
-            coords.forEach((value, colIndex) => {
+            coords.forEach((value) => {
                 const td = tr.insertCell();
                 td.contentEditable = true;
                 td.textContent = value;
@@ -232,55 +229,7 @@ class ForgeCoupleDirectInterface {
         }
     }
 
-    /**
-     * Update the main prompt field with region prompts
-     * @param {Array} regions - Region data
-     */
-    updatePromptField(regions) {
-        try {
-            // Get the couple separator
-            const separatorInput = document.querySelector('.fc_separator input') || 
-                                  document.querySelector('input[data-testid="forge_couple_separator"]');
-            const separator = separatorInput ? separatorInput.value || '\n' : '\n';
 
-            // Get prompt field
-            const promptField = document.querySelector(
-                `#${this.mode === 't2i' ? 'txt' : 'img'}2img_prompt textarea`
-            );
-
-            if (promptField) {
-                // Check for background mode
-                const backgroundRadio = document.querySelector(`#forge_couple_${this.mode} .fc_global_effect input:checked`);
-                const background = backgroundRadio ? backgroundRadio.value : 'None';
-
-                let prompts = regions.map(r => r.prompt);
-
-                // Handle background modes
-                if (background === 'First Line') {
-                    const existingPrompts = promptField.value.split(separator);
-                    if (existingPrompts.length > 0) {
-                        prompts.unshift(existingPrompts[0]);
-                    }
-                } else if (background === 'Last Line') {
-                    const existingPrompts = promptField.value.split(separator);
-                    if (existingPrompts.length > 0) {
-                        prompts.push(existingPrompts[existingPrompts.length - 1]);
-                    }
-                }
-
-                promptField.value = prompts.join(separator);
-                
-                // Trigger update
-                if (window.updateInput) {
-                    window.updateInput(promptField);
-                } else {
-                    promptField.dispatchEvent(new Event('input', { bubbles: true }));
-                }
-            }
-        } catch (error) {
-            console.warn('[ForgeCoupleDirectInterface] Could not update prompt field:', error);
-        }
-    }
 
     /**
      * Get current regions from ForgeCouple
@@ -298,7 +247,7 @@ class ForgeCoupleDirectInterface {
             const rows = dataframe.body.querySelectorAll('tr');
             const regions = [];
 
-            rows.forEach((row, index) => {
+            rows.forEach((row) => {
                 const cells = row.querySelectorAll('td');
                 if (cells.length >= 6) {
                     regions.push({

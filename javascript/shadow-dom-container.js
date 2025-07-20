@@ -231,7 +231,7 @@
                 border: 1px solid var(--border-color-primary);
                 color: var(--body-text-color);
                 width: 100%;
-                text-align: inherit;
+                text-align: center;
                 font-family: inherit;
                 font-size: inherit;
                 border-radius: 3px;
@@ -262,6 +262,15 @@
                 border-radius: 4px;
                 margin: 2px 0;
                 font-family: var(--font-mono);
+                text-align: left !important;
+            }
+
+            .region-table td.prompt input[readonly] {
+                background: var(--background-fill-primary);
+                color: var(--body-text-color-subdued);
+                border-color: var(--border-color-secondary);
+                cursor: default;
+                opacity: 0.8;
             }
 
             .region-table td.prompt input:focus {
@@ -283,6 +292,13 @@
 
             .region-table input[type="number"] {
                 -moz-appearance: textfield;
+                text-align: center !important;
+            }
+
+            /* Ensure coordinate and weight inputs are centered */
+            .region-table td.coordinate input,
+            .region-table td.weight input {
+                text-align: center !important;
             }
 
             .row-menu {

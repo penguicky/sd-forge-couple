@@ -396,9 +396,6 @@
         // Update the mapping component if it exists
         this.updateMappingComponent(regions);
 
-        // Update prompts in the main prompt field
-        this.updatePromptField(regions);
-
         return true;
       } catch (error) {
         return false;
@@ -497,17 +494,11 @@
     }
 
     /**
-     * Update the hidden mapping component used by the backend
+     * Store mapping data globally for direct backend access
      * @param {Array} regions - Region data
      */
     updateMappingComponent(regions) {
       try {
-        const accordion = document.querySelector(`#forge_couple_${this.mode}`);
-        if (!accordion) return;
-
-        // Find the JSON component (hidden input)
-        const jsonComponents = accordion.querySelectorAll('textarea[data-testid*="json"], input[type="hidden"]');
-
         const mappingData = regions.map(r => [
           parseFloat(r.x1.toFixed(2)),
           parseFloat(r.x2.toFixed(2)),
@@ -516,70 +507,20 @@
           parseFloat(r.weight.toFixed(1))
         ]);
 
-        jsonComponents.forEach(component => {
-          if (component.value && (component.value.includes('[[') || component.value === '[]')) {
-            component.value = JSON.stringify(mappingData);
+        // Store mapping data globally for direct backend access
+        if (!window.ForgeCoupleDirectMapping) {
+          window.ForgeCoupleDirectMapping = {};
+        }
+        window.ForgeCoupleDirectMapping[this.mode] = mappingData;
 
-            // Trigger Gradio update if needed
-            if (component._gradio_component) {
-              component._gradio_component.value = mappingData;
-            }
-          }
-        });
+        // Also update the ForgeCouple dataframe for compatibility
+        this.updateDataframe(window.ForgeCouple.dataframe[this.mode], regions);
       } catch (error) {
         // Silent fail - mapping component update not critical
       }
     }
 
-    /**
-     * Update the main prompt field with region prompts
-     * @param {Array} regions - Region data
-     */
-    updatePromptField(regions) {
-      try {
-        // Get the couple separator
-        const separatorInput = document.querySelector('.fc_separator input') ||
-                              document.querySelector('input[data-testid="forge_couple_separator"]');
-        const separator = separatorInput ? separatorInput.value || '\n' : '\n';
 
-        // Get prompt field
-        const promptField = document.querySelector(
-          `#${this.mode === 't2i' ? 'txt' : 'img'}2img_prompt textarea`
-        );
-
-        if (promptField) {
-          // Check for background mode
-          const backgroundRadio = document.querySelector(`#forge_couple_${this.mode} .fc_global_effect input:checked`);
-          const background = backgroundRadio ? backgroundRadio.value : 'None';
-
-          let prompts = regions.map(r => r.prompt);
-
-          // Handle background modes
-          if (background === 'First Line') {
-            const existingPrompts = promptField.value.split(separator);
-            if (existingPrompts.length > 0) {
-              prompts.unshift(existingPrompts[0]);
-            }
-          } else if (background === 'Last Line') {
-            const existingPrompts = promptField.value.split(separator);
-            if (existingPrompts.length > 0) {
-              prompts.push(existingPrompts[existingPrompts.length - 1]);
-            }
-          }
-
-          promptField.value = prompts.join(separator);
-
-          // Trigger update
-          if (window.updateInput) {
-            window.updateInput(promptField);
-          } else {
-            promptField.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-        }
-      } catch (error) {
-        // Silent fail - prompt field update not critical
-      }
-    }
 
     /**
      * Get current regions from ForgeCouple

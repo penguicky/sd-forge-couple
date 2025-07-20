@@ -266,14 +266,20 @@
         );
 
         if (promptTextarea && !this.promptWatcherAttached) {
+          // Use debounced input to avoid interfering with typing
           this.resourceManager.addEventListener(promptTextarea, "input", () => {
-            this.syncFromWebUIPrompts();
+            clearTimeout(this.webUIPromptSyncTimeout);
+            this.webUIPromptSyncTimeout = setTimeout(() => {
+              this.syncFromWebUIPrompts();
+            }, 1000); // Wait 1 second after user stops typing
           });
 
+          // Immediate sync on blur/change when user finishes editing
           this.resourceManager.addEventListener(
             promptTextarea,
-            "change",
+            "blur",
             () => {
+              clearTimeout(this.webUIPromptSyncTimeout);
               this.syncFromWebUIPrompts();
             }
           );
@@ -302,11 +308,6 @@
 
     syncFromWebUIPrompts() {
       try {
-        // Skip sync if disabled (prevents feedback loops)
-        if (this.disablePromptWatcher) {
-          return;
-        }
-
         const webUIPrompts = this.getWebUIPrompts();
 
         if (webUIPrompts.length > 0) {
@@ -323,18 +324,23 @@
                 y2: 1.0,
                 weight: 1.0,
                 prompt: prompt.trim(),
+                color: this.getNextColor(),
               };
               this.createRegion(regionData);
             }
           });
 
-          // DON'T remove excess regions automatically - let user manage regions manually
-          // This prevents regions from being lost when prompts don't change
-          // Only update prompts, preserve existing region coordinates and settings
+          // If we have fewer prompts than regions, clear the extra region prompts
+          // but keep the regions (preserve coordinates and settings)
+          if (webUIPrompts.length < this.regions.length) {
+            for (let i = webUIPrompts.length; i < this.regions.length; i++) {
+              this.regions[i].prompt = "";
+            }
+          }
 
           this.updateCanvas();
           this.updateTable();
-          this.autoSyncToBackend(); // Auto-sync when prompts are synced from WebUI
+          this.autoSyncToBackend();
         }
       } catch (error) {
         // Silently handle sync errors
@@ -385,9 +391,6 @@
     setupBackendIntegration() {
       // Find the forge-couple mapping JSON component
       this.findMappingComponent();
-
-      // Also sync immediately when regions change
-      this.lastRegionHash = "";
 
       // Set up generation hook to sync right before generation
       this.setupGenerationHook();
@@ -588,380 +591,30 @@
     }
 
     /**
-     * Sync regions to backend using direct interface or fallback to DOM method
+     * Sync regions to backend using direct interface
      */
     syncToBackend() {
-      try {
-        // Use direct interface if available
-        if (this.directInterface && this.directInterface.isReady) {
-          // Only sync when in Advanced mode
-          if (!this.directInterface.isAdvancedMode()) {
-            return;
-          }
-
-          // Prepare region data with prompts
-          const regionsWithPrompts = this.regions.map(region => ({
-            x1: region.x1,
-            y1: region.y1,
-            x2: region.x2,
-            y2: region.y2,
-            weight: region.weight,
-            prompt: region.prompt
-          }));
-
-          // Use direct interface to update
-          const success = this.directInterface.updateRegions(regionsWithPrompts);
-
-          if (!success) {
-            // Fallback to DOM method if direct interface fails
-            this.syncToBackendViaDOM();
-          }
-        } else {
-          // Fallback to DOM method if direct interface not ready
-          this.syncToBackendViaDOM();
-        }
-      } catch (error) {
-        // Try fallback on any error
-        this.syncToBackendViaDOM();
+      // Only sync when in Advanced mode
+      if (!this.directInterface.isAdvancedMode()) {
+        return;
       }
+
+      // Prepare region data with prompts
+      const regionsWithPrompts = this.regions.map(region => ({
+        x1: region.x1,
+        y1: region.y1,
+        x2: region.x2,
+        y2: region.y2,
+        weight: region.weight,
+        prompt: region.prompt
+      }));
+
+      // Use direct interface to update
+      this.directInterface.updateRegions(regionsWithPrompts);
     }
 
-    syncToBackendViaDOM() {
-      try {
-        // Convert regions to forge-couple mapping format: [x1, x2, y1, y2, weight]
-        const mappingData = this.regions.map((region) => {
-          const mapping = [
-            region.x1,
-            region.x2, // x2 comes before y1 in API format!
-            region.y1,
-            region.y2,
-            region.weight,
-          ];
-          return mapping;
-        });
 
-        // Create hash to detect changes
-        const currentHash = JSON.stringify(mappingData);
-        if (currentHash === this.lastRegionHash) {
-          return; // No changes
-        }
 
-        this.lastRegionHash = currentHash;
-        const mappingJson = JSON.stringify(mappingData);
-
-        // Sync regions to backend
-
-        // CRITICAL: Update the correct forge-couple components
-        // Based on ui_adv.py, we need to update:
-        // 1. The paste field (fc_paste_field) - this triggers the update
-        // 2. The JSON component - this is the actual data store
-
-        const accordion = document.querySelector(
-          `#forge_couple_${this.mode === "t2i" ? "t2i" : "i2i"}`
-        );
-
-        if (accordion) {
-          // Method 1: Update the paste field (this should trigger forge-couple's onPaste)
-          const pasteField = accordion.querySelector(
-            ".fc_paste_field textarea, .fc_paste_field input"
-          );
-          if (pasteField) {
-            pasteField.value = mappingJson;
-
-            // Trigger the change event that calls on_entry -> updates JSON -> calls ForgeCouple.onPaste
-            pasteField.dispatchEvent(new Event("input", { bubbles: true }));
-            pasteField.dispatchEvent(new Event("change", { bubbles: true }));
-            pasteField.dispatchEvent(new Event("blur", { bubbles: true }));
-          }
-
-          // Method 2: CRITICAL - Find and update the gradio JSON component
-          // This is the component that forge-couple actually reads from (gr.JSON)
-
-          // Try to find the gradio JSON component by looking for gradio's internal structure
-          const gradioComponents = accordion.querySelectorAll("[data-testid]");
-          for (const component of gradioComponents) {
-            const testId = component.getAttribute("data-testid");
-            if (testId && testId.includes("json")) {
-              // Update the component value
-              component.value = mappingJson;
-
-              // Try to trigger gradio's internal update mechanism
-              if (component._gradio_component) {
-                component._gradio_component.value = mappingData;
-              }
-
-              // Trigger all possible events
-              component.dispatchEvent(new Event("input", { bubbles: true }));
-              component.dispatchEvent(new Event("change", { bubbles: true }));
-              component.dispatchEvent(new Event("blur", { bubbles: true }));
-
-              break;
-            }
-          }
-
-          // Method 3: Try to access gradio's component registry directly
-          if (window.gradio && window.gradio.components) {
-            // Look for JSON components in gradio's registry
-            for (const [, component] of Object.entries(
-              window.gradio.components
-            )) {
-              if (
-                component &&
-                component.constructor &&
-                component.constructor.name === "JSON"
-              ) {
-                try {
-                  // Update the component's value directly
-                  component.value = mappingData;
-
-                  // Trigger gradio's update mechanism
-                  if (component.update) {
-                    component.update(mappingData);
-                  }
-                } catch (error) {
-                  // Error updating gradio component
-                }
-              }
-            }
-          }
-        }
-
-        // Also update entry field if found (this triggers the backend update)
-        if (this.entryField) {
-          if (
-            this.entryField.type !== "file" &&
-            this.entryField.accept !== ".json"
-          ) {
-            try {
-              this.entryField.value = mappingJson;
-
-              // Trigger events on entry field
-              this.entryField.dispatchEvent(
-                new Event("input", { bubbles: true })
-              );
-              this.entryField.dispatchEvent(
-                new Event("change", { bubbles: true })
-              );
-            } catch (error) {
-              // Error updating entry field
-            }
-          } else {
-            // Skipping entry field file input
-          }
-        }
-
-        // CRITICAL: Also try to find and update the actual gradio JSON component
-        // This is the component that forge-couple reads for the mapping parameter
-        const forgeCoupleAccordion = document.querySelector(
-          `#forge_couple_${this.mode === "t2i" ? "t2i" : "i2i"}`
-        );
-
-        if (forgeCoupleAccordion) {
-          // Look for any textarea that currently contains mapping-like data
-          const allTextareas =
-            forgeCoupleAccordion.querySelectorAll("textarea");
-          for (const textarea of allTextareas) {
-            const value = textarea.value;
-            // Check if this textarea contains array data that looks like mapping
-            if (
-              value &&
-              (value.includes("[[") ||
-                value.includes("[0,") ||
-                value.includes("[0.5,"))
-            ) {
-              try {
-                textarea.value = mappingJson;
-                textarea.dispatchEvent(new Event("input", { bubbles: true }));
-                textarea.dispatchEvent(new Event("change", { bubbles: true }));
-              } catch (error) {
-                // Error updating potential mapping textarea
-              }
-            }
-          }
-        }
-
-        // Also try to update via global ForgeCouple object if available
-        if (
-          window.ForgeCouple &&
-          window.ForgeCouple.dataframe &&
-          window.ForgeCouple.dataframe[this.mode]
-        ) {
-          try {
-            this.updateOriginalDataframe(mappingData);
-          } catch (error) {
-            // Error updating original dataframe
-          }
-        }
-
-        // CRITICAL: Direct integration with original forge-couple system
-        if (window.ForgeCouple) {
-          try {
-            // First, update the original dataframe directly
-            if (
-              window.ForgeCouple.dataframe &&
-              window.ForgeCouple.dataframe[this.mode]
-            ) {
-              this.updateOriginalDataframe(mappingData);
-            }
-
-            // Then trigger the onEntry method to update the backend JSON
-            if (window.ForgeCouple.onEntry) {
-              window.ForgeCouple.onEntry(this.mode);
-            }
-
-            // Also try to directly update the entryField if it exists
-            if (
-              window.ForgeCouple.entryField &&
-              window.ForgeCouple.entryField[this.mode]
-            ) {
-              const entryField = window.ForgeCouple.entryField[this.mode];
-              entryField.value = mappingJson;
-              entryField.dispatchEvent(new Event("input", { bubbles: true }));
-              entryField.dispatchEvent(new Event("change", { bubbles: true }));
-
-              // Trigger updateInput if available (from gradio)
-              if (window.updateInput) {
-                window.updateInput(entryField);
-              }
-            }
-          } catch (error) {
-            // Error in direct ForgeCouple integration
-          }
-        } else {
-          // ForgeCouple not available, use direct gradio approach
-
-          // Direct gradio approach - find and trigger the exact component
-          const accordion = document.querySelector(
-            `#forge_couple_${this.mode === "t2i" ? "t2i" : "i2i"}`
-          );
-
-          if (accordion) {
-            // Find the textarea that contains mapping data
-            const textareas = accordion.querySelectorAll(
-              "textarea.scroll-hide.svelte-1f354aw"
-            );
-
-            for (const textarea of textareas) {
-              if (textarea.value && textarea.value.includes("[[")) {
-                // Update the value
-                textarea.value = mappingJson;
-
-                // Trigger all possible gradio events
-                const events = ["input", "change", "blur", "keyup"];
-                events.forEach((eventType) => {
-                  textarea.dispatchEvent(
-                    new Event(eventType, { bubbles: true })
-                  );
-                });
-
-                // Try to trigger gradio's internal update mechanism
-                if (textarea._gradio_component) {
-                  textarea._gradio_component.value = mappingJson;
-                }
-
-                // Try to find and trigger the gradio app update
-                const gradioApp = document.querySelector("gradio-app");
-                if (gradioApp && gradioApp.shadowRoot) {
-                  const updateEvent = new CustomEvent("gradio:update", {
-                    detail: { component: textarea, value: mappingJson },
-                  });
-                  gradioApp.dispatchEvent(updateEvent);
-                }
-
-                // CRITICAL: Try to update the gradio component's internal value
-                // This is what forge-couple might actually read during generation
-                try {
-                  // Find the gradio component ID from the textarea's attributes
-                  const componentId =
-                    textarea.getAttribute("data-testid") ||
-                    textarea
-                      .closest("[data-testid]")
-                      ?.getAttribute("data-testid");
-
-                  if (componentId) {
-                    // Try to access gradio's internal component registry
-                    if (window.gradio && window.gradio.components) {
-                      const component = window.gradio.components[componentId];
-                      if (component) {
-                        component.value = mappingJson;
-                        if (component.update) {
-                          component.update(mappingJson);
-                        }
-                      }
-                    }
-
-                    // Try alternative gradio access patterns
-                    if (window.app && window.app.components) {
-                      const component = window.app.components[componentId];
-                      if (component) {
-                        component.value = mappingJson;
-                      }
-                    }
-                  }
-
-                  // Also try to find the parent gradio block and update its value
-                  const gradioBlock = textarea.closest(
-                    ".gradio-block, .gradio-component, [data-testid]"
-                  );
-                  if (gradioBlock && gradioBlock._gradio) {
-                    gradioBlock._gradio.value = mappingJson;
-                    if (gradioBlock._gradio.update) {
-                      gradioBlock._gradio.update(mappingJson);
-                    }
-                  }
-                } catch (error) {
-                  // Error updating gradio internals
-                }
-
-                break;
-              }
-            }
-          }
-        }
-
-        // CRITICAL: Also ensure the couples (prompts) match the mapping count
-        this.ensureCouplesMatchMapping();
-      } catch (error) {
-        // Error syncing to backend
-      }
-    }
-
-    ensureCouplesMatchMapping() {
-      try {
-        // DISABLE prompt watcher temporarily to prevent feedback loop
-        this.disablePromptWatcher = true;
-        // Also try to find and update any couples-specific textareas
-        const accordion = document.querySelector(
-          `#forge_couple_${this.mode === "t2i" ? "t2i" : "i2i"}`
-        );
-        if (accordion) {
-          // Look for textareas that might contain couples/prompts
-          const textareas = accordion.querySelectorAll("textarea");
-          textareas.forEach((ta, i) => {
-            // Skip the mapping textarea (element 18)
-            if (
-              i !== 18 &&
-              (!ta.value || ta.value.trim() === "" || ta.value === "empty")
-            ) {
-              // This might be a couples textarea - try to populate it
-              if (i < this.regions.length) {
-                ta.value = this.regions[i].prompt;
-                ta.dispatchEvent(new Event("input", { bubbles: true }));
-                ta.dispatchEvent(new Event("change", { bubbles: true }));
-              }
-            }
-          });
-        }
-
-        // Re-enable prompt watcher after a delay
-        setTimeout(() => {
-          this.disablePromptWatcher = false;
-        }, 2000);
-      } catch (error) {
-        // Error ensuring couples match mapping
-        this.disablePromptWatcher = false;
-      }
-    }
 
     updateOriginalDataframe(mappingData) {
       try {
@@ -1178,28 +831,7 @@
       }
     }
 
-    updateWebUIPrompts() {
-      try {
-        const separator = this.getCoupleSeparator();
-        const prompts = this.regions
-          .map((region) => region.prompt)
-          .filter((p) => p.trim());
-        const combinedPrompt = prompts.join(separator);
 
-        // Try to update prompt in current tab (txt2img or img2img)
-        const promptTextarea = document.querySelector(
-          "#txt2img_prompt textarea, #img2img_prompt textarea"
-        );
-
-        if (promptTextarea) {
-          promptTextarea.value = combinedPrompt;
-          // Trigger input event to notify WebUI of the change
-          promptTextarea.dispatchEvent(new Event("input", { bubbles: true }));
-        }
-      } catch (error) {
-        // Could not update WebUI prompts
-      }
-    }
 
     createRegion(regionData = null) {
       // Default coordinates: first region is 0,1,0,1,1, additional regions are 0.3,0.6,0.3,0.6,1
@@ -1853,7 +1485,7 @@
             <td class="prompt">
                 <input type="text" value="${
                   region.prompt
-                }" data-field="prompt" placeholder="Enter prompt...">
+                }" data-field="prompt" placeholder="Controlled by main prompt box" readonly style="cursor: default;" title="Prompts are controlled by the main prompt box above">
                 <div class="row-menu-trigger"></div>
                 <div class="row-menu">
                     <button data-action="add-above">Add Above</button>
@@ -1960,15 +1592,8 @@
       const field = e.target.dataset.field;
       const value = e.target.value;
 
-      // Update region data
-      if (field === "prompt") {
-        region[field] = value;
-        // Sync prompt changes to WebUI (debounced to avoid excessive updates)
-        clearTimeout(this.promptSyncTimeout);
-        this.promptSyncTimeout = setTimeout(() => {
-          this.updateWebUIPrompts();
-        }, 300);
-      } else {
+      // Update region data (skip prompt since it's read-only)
+      if (field !== "prompt") {
         // For numeric fields, just store the raw value during typing
         // Validation will happen on blur/change
         region[field + "_raw"] = value;
@@ -2091,7 +1716,6 @@
         return;
       }
 
-      this.lastRegionHash = ""; // Force sync
       this.syncToBackend();
     }
 
@@ -2193,7 +1817,6 @@
         x2: region.x2,
         y2: region.y2,
         weight: region.weight,
-        prompt: region.prompt,
         color: region.color,
       }));
     }
@@ -2445,7 +2068,17 @@
         this.clearAllRegions();
 
         config.regions.forEach((regionData) => {
-          this.createRegion(regionData);
+          // Don't import prompts - only coordinates, weight, and color
+          const cleanRegionData = {
+            x1: regionData.x1,
+            y1: regionData.y1,
+            x2: regionData.x2,
+            y2: regionData.y2,
+            weight: regionData.weight,
+            color: regionData.color,
+            prompt: "", // Always start with empty prompt
+          };
+          this.createRegion(cleanRegionData);
         });
 
         this.updateCanvas();
