@@ -11,6 +11,8 @@
     "shadow-forge-couple.js",
     "shadow-dom-container.js",
     "direct-backend-hook.js",
+    "backend-to-frontend-sync.js",
+    "smart-paste-handler.js",
   ];
 
   // Note: backend-bridge.js, event-bridge.js, and resource-manager.js are included in the bundle
