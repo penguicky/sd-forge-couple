@@ -266,19 +266,34 @@
                 return;
             }
 
-            // Check current state first
+            // Check current state first - target only the mode radio buttons
             const enableCheckbox = accordion.querySelector('input[type="checkbox"]');
-            const modeRadios = accordion.querySelectorAll('input[type="radio"]');
+
+            // Find the mode radio group specifically (Basic, Advanced, Mask)
+            const modeRadios = Array.from(accordion.querySelectorAll('input[type="radio"]')).filter(radio =>
+                ['Basic', 'Advanced', 'Mask'].includes(radio.value)
+            );
+
             let advancedRadio = null;
+            let currentModeRadio = null;
 
             modeRadios.forEach(radio => {
                 if (radio.value === 'Advanced') {
                     advancedRadio = radio;
                 }
+                if (radio.checked) {
+                    currentModeRadio = radio;
+                }
             });
 
             const isCurrentlyEnabled = enableCheckbox?.checked || false;
             const isCurrentlyAdvanced = advancedRadio?.checked || false;
+
+            console.log(`[ForgeCoupleBackendSync] Current state for ${mode}:`);
+            console.log(`  Enabled: ${isCurrentlyEnabled}`);
+            console.log(`  Current mode: ${currentModeRadio?.value || 'None'}`);
+            console.log(`  Advanced checked: ${isCurrentlyAdvanced}`);
+            console.log(`  Mode radio buttons found: ${modeRadios.length}`);
 
             // Check if we need to make any changes
             const needsEnabling = !isCurrentlyEnabled;
@@ -314,8 +329,25 @@
             // 2. Set mode to Advanced if needed
             if (needsModeChange && advancedRadio) {
                 console.log(`[ForgeCoupleBackendSync] Setting mode to Advanced for ${mode}`);
+
+                // First uncheck all other mode radio buttons (only Basic, Advanced, Mask group)
+                modeRadios.forEach(radio => {
+                    if (radio !== advancedRadio) {
+                        radio.checked = false;
+                    }
+                });
+
+                // Then set Advanced mode
                 advancedRadio.checked = true;
                 advancedRadio.dispatchEvent(new Event('change', { bubbles: true }));
+
+                // Verify the state change
+                setTimeout(() => {
+                    const isNowAdvanced = advancedRadio.checked;
+                    const otherModeRadiosUnchecked = modeRadios.filter(r => r !== advancedRadio).every(r => !r.checked);
+                    console.log(`[ForgeCoupleBackendSync] Mode change verification: Advanced=${isNowAdvanced}, Other modes unchecked=${otherModeRadiosUnchecked}`);
+                }, 100);
+
             } else if (advancedRadio) {
                 console.log(`[ForgeCoupleBackendSync] Already in Advanced mode for ${mode}`);
             }
@@ -337,12 +369,38 @@
 
             // 4. Wait a moment for UI updates to complete
             setTimeout(() => {
-                // Verify final state
+                // Verify final state - only check mode radio buttons
                 const finalEnableState = enableCheckbox?.checked;
                 const finalModeState = advancedRadio?.checked;
+
+                // Check only mode radio button states (Basic, Advanced, Mask)
+                const modeRadioStates = modeRadios.map(radio => ({
+                    value: radio.value,
+                    checked: radio.checked
+                }));
+
+                const checkedModeRadios = modeRadioStates.filter(r => r.checked);
+
                 console.log(`[ForgeCoupleBackendSync] Activation complete for ${mode}:`);
                 console.log(`  Final enable state: ${finalEnableState}`);
                 console.log(`  Final mode state: ${finalModeState ? 'Advanced' : 'Other'}`);
+                console.log(`  Mode radio states:`, modeRadioStates);
+                console.log(`  Checked mode radios count: ${checkedModeRadios.length}`);
+
+                if (checkedModeRadios.length > 1) {
+                    console.warn(`[ForgeCoupleBackendSync] WARNING: Multiple mode radio buttons checked for ${mode}:`, checkedModeRadios);
+
+                    // Fix the issue by unchecking all mode radios except Advanced
+                    modeRadios.forEach(radio => {
+                        if (radio.value !== 'Advanced') {
+                            radio.checked = false;
+                        }
+                    });
+
+                    console.log(`[ForgeCoupleBackendSync] Fixed multiple mode radio selection for ${mode}`);
+                } else if (checkedModeRadios.length === 1) {
+                    console.log(`[ForgeCoupleBackendSync] ✅ Correct: Only one mode radio checked (${checkedModeRadios[0].value})`);
+                }
             }, 300);
         }
         
