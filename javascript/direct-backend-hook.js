@@ -65,6 +65,13 @@
                 // Get the current mode (t2i or i2i)
                 const mode = this.detectMode(url, requestData);
 
+                // Verify state is ready before proceeding
+                const verificationResult = this.verifyStateReadiness(mode);
+                if (!verificationResult.ready) {
+                    console.warn(`[ForgeCoupleDirectBackendHook] State not ready for ${mode}:`, verificationResult.issues);
+                    // Continue with fallback behavior
+                }
+
                 // Get mapping data from our direct interface
                 const mappingData = this.getDirectMappingData(mode);
                 if (mappingData && mappingData.length > 0) {
@@ -80,6 +87,8 @@
                     options.body = JSON.stringify(requestData);
 
                     console.log(`[ForgeCoupleDirectBackendHook] Injected mapping data for ${mode}:`, mappingData);
+                } else {
+                    console.warn(`[ForgeCoupleDirectBackendHook] No mapping data available for ${mode}, using defaults`);
                 }
 
             } catch (error) {
@@ -194,6 +203,53 @@
             }
 
             return 't2i'; // Default to t2i
+        }
+
+        verifyStateReadiness(mode) {
+            const issues = [];
+            let ready = true;
+
+            // Check 1: State manager availability
+            if (!window.ForgeCoupleStateManager) {
+                issues.push('State manager not available');
+                ready = false;
+            } else {
+                const stateManager = window.ForgeCoupleStateManager.getInstance();
+                if (!stateManager.isInitialized(mode)) {
+                    issues.push(`State manager not initialized for ${mode}`);
+                    ready = false;
+                }
+            }
+
+            // Check 2: Direct mapping data
+            if (!window.ForgeCoupleDirectMapping || !window.ForgeCoupleDirectMapping[mode]) {
+                issues.push(`Direct mapping data not available for ${mode}`);
+                ready = false;
+            }
+
+            // Check 3: ForgeCouple dataframe
+            if (!window.ForgeCouple ||
+                !window.ForgeCouple.dataframe ||
+                !window.ForgeCouple.dataframe[mode] ||
+                !window.ForgeCouple.dataframe[mode].body) {
+                issues.push(`ForgeCouple dataframe not ready for ${mode}`);
+                ready = false;
+            }
+
+            // Check 4: Shadow DOM containers
+            const shadowHost = document.querySelector(`.forge-couple-shadow-host[data-mode="${mode}"]`);
+            if (!shadowHost) {
+                issues.push(`Shadow DOM container not found for ${mode}`);
+                // This is not critical, so don't mark as not ready
+            }
+
+            if (ready) {
+                console.log(`[ForgeCoupleDirectBackendHook] State verification passed for ${mode}`);
+            } else {
+                console.warn(`[ForgeCoupleDirectBackendHook] State verification failed for ${mode}:`, issues);
+            }
+
+            return { ready, issues };
         }
 
         updateGradioRequestWithMapping(requestData, mappingData, mode) {

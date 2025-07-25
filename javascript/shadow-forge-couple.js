@@ -79,6 +79,8 @@
       this.setupPromptWatcher();
       this.setupBackendIntegration();
       this.setupAutoImageUpdate();
+      this.setupStateManager();
+      this.setupDebugLogging();
       this.initializeDefaultRegions();
     }
 
@@ -88,6 +90,40 @@
     initializeDirectInterface() {
       // Create direct interface immediately - it will handle ForgeCouple creation and be ready immediately
       this.directInterface = new ForgeCoupleDirectInterface(this.mode);
+    }
+
+    /**
+     * Setup state manager integration
+     */
+    setupStateManager() {
+      if (!window.ForgeCoupleStateManager) {
+        console.error('[ShadowForgeCouple] State manager not available');
+        return;
+      }
+
+      this.stateManager = window.ForgeCoupleStateManager.getInstance();
+
+      // Listen for state changes from other sources
+      this.stateUnsubscribe = this.stateManager.addListener(this.mode, (regions, source) => {
+        if (source !== 'shadow-dom') {
+          console.log(`[ShadowForgeCouple] Received state update from ${source} for ${this.mode}`);
+          this.regions = [...regions];
+          this.updateCanvas();
+          this.updateTable();
+        }
+      });
+
+      console.log(`[ShadowForgeCouple] State manager integration setup for ${this.mode}`);
+    }
+
+    /**
+     * Setup debug logging integration
+     */
+    setupDebugLogging() {
+      if (window.ForgeCoupleDebug) {
+        this.debugUtil = window.ForgeCoupleDebug.getInstance();
+        this.debugUtil.log('info', `ShadowForgeCouple initialized for ${this.mode}`, null, 'shadow-dom');
+      }
     }
 
     setupCanvasDimensions() {
@@ -591,7 +627,7 @@
     }
 
     /**
-     * Sync regions to backend using direct interface
+     * Sync regions to backend using state manager
      */
     syncToBackend() {
       // Only sync when in Advanced mode
@@ -599,18 +635,31 @@
         return;
       }
 
-      // Prepare region data with prompts
-      const regionsWithPrompts = this.regions.map(region => ({
-        x1: region.x1,
-        y1: region.y1,
-        x2: region.x2,
-        y2: region.y2,
-        weight: region.weight,
-        prompt: region.prompt
-      }));
-
-      // Use direct interface to update
-      this.directInterface.updateRegions(regionsWithPrompts);
+      // Use state manager for centralized updates
+      if (this.stateManager) {
+        this.debugUtil?.log('info', `Syncing ${this.regions.length} regions to state manager`, { regions: this.regions.length }, 'shadow-dom');
+        const success = this.stateManager.updateRegions(this.mode, this.regions, 'shadow-dom');
+        if (success) {
+          console.log(`[ShadowForgeCouple] Successfully synced ${this.regions.length} regions to state manager for ${this.mode}`);
+          this.debugUtil?.log('info', 'Sync to state manager successful', { regions: this.regions.length }, 'shadow-dom');
+        } else {
+          console.warn(`[ShadowForgeCouple] Failed to sync regions to state manager for ${this.mode}`);
+          this.debugUtil?.log('warn', 'Sync to state manager failed', { regions: this.regions.length }, 'shadow-dom');
+        }
+      } else {
+        // Fallback to direct interface if state manager not available
+        console.warn('[ShadowForgeCouple] State manager not available, using direct interface fallback');
+        this.debugUtil?.log('warn', 'State manager not available, using fallback', null, 'shadow-dom');
+        const regionsWithPrompts = this.regions.map(region => ({
+          x1: region.x1,
+          y1: region.y1,
+          x2: region.x2,
+          y2: region.y2,
+          weight: region.weight,
+          prompt: region.prompt
+        }));
+        this.directInterface.updateRegions(regionsWithPrompts);
+      }
     }
 
 

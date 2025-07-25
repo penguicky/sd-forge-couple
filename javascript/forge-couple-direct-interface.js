@@ -10,95 +10,215 @@ class ForgeCoupleDirectInterface {
     }
 
     /**
-     * Initialize and wait for ForgeCouple to be available
+     * Initialize and wait for ForgeCouple to be available with retry mechanism
      */
-    initializeInterface() {
+    async initializeInterface() {
+        const maxRetries = 15;
+        const retryDelay = 200;
+        const maxWaitTime = 10000; // 10 seconds total
+
+        console.log(`[ForgeCoupleDirectInterface] Initializing interface for ${this.mode} mode`);
+
         // Check if ForgeCouple is already available
-        if (window.ForgeCouple && window.ForgeCouple.dataframe && window.ForgeCouple.dataframe[this.mode]) {
+        if (this.checkReadiness()) {
             this.isReady = true;
-            return;
+            console.log(`[ForgeCoupleDirectInterface] Already ready for ${this.mode} mode`);
+            return true;
         }
 
-        // Wait for ForgeCouple to be initialized
-        const checkInterval = setInterval(() => {
-            if (window.ForgeCouple && 
-                window.ForgeCouple.dataframe && 
-                window.ForgeCouple.dataframe[this.mode]) {
-                this.isReady = true;
-                clearInterval(checkInterval);
-                console.log(`[ForgeCoupleDirectInterface] Ready for ${this.mode} mode`);
-            }
-        }, 100);
+        // Retry mechanism with exponential backoff
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            console.log(`[ForgeCoupleDirectInterface] Attempt ${attempt}/${maxRetries} for ${this.mode} mode`);
 
-        // Timeout after 30 seconds
-        setTimeout(() => {
-            clearInterval(checkInterval);
-            if (!this.isReady) {
-                console.error('[ForgeCoupleDirectInterface] Timeout waiting for ForgeCouple');
+            if (this.checkReadiness()) {
+                this.isReady = true;
+                console.log(`[ForgeCoupleDirectInterface] Successfully initialized for ${this.mode} mode after ${attempt} attempts`);
+                return true;
             }
-        }, 30000);
+
+            // Create missing components if needed
+            this.ensureForgeCouplExists();
+
+            if (attempt < maxRetries) {
+                const delay = Math.min(retryDelay * Math.pow(1.2, attempt - 1), 1000);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+
+        console.error(`[ForgeCoupleDirectInterface] Failed to initialize for ${this.mode} mode after ${maxRetries} attempts`);
+        return false;
     }
 
     /**
-     * Update regions directly in ForgeCouple
+     * Check if all required components are ready
+     */
+    checkReadiness() {
+        return window.ForgeCouple &&
+               window.ForgeCouple.dataframe &&
+               window.ForgeCouple.dataframe[this.mode] &&
+               window.ForgeCouple.dataframe[this.mode].body;
+    }
+
+    /**
+     * Ensure ForgeCouple global object exists with required structure
+     */
+    ensureForgeCouplExists() {
+        if (!window.ForgeCouple) {
+            console.log('[ForgeCoupleDirectInterface] Creating ForgeCouple global object');
+            window.ForgeCouple = {};
+        }
+
+        if (!window.ForgeCouple.dataframe) {
+            window.ForgeCouple.dataframe = {};
+        }
+
+        if (!window.ForgeCouple.dataframe[this.mode]) {
+            console.log(`[ForgeCoupleDirectInterface] Creating dataframe for ${this.mode} mode`);
+            window.ForgeCouple.dataframe[this.mode] = {
+                body: document.createElement('tbody')
+            };
+        }
+
+        if (!window.ForgeCouple.entryField) {
+            window.ForgeCouple.entryField = {};
+        }
+
+        if (!window.ForgeCouple.entryField[this.mode]) {
+            window.ForgeCouple.entryField[this.mode] = document.createElement('input');
+        }
+    }
+
+    /**
+     * Update regions directly in ForgeCouple with retry mechanism
      * @param {Array} regions - Array of region objects with x1, y1, x2, y2, weight, prompt
      * @returns {boolean} Success status
      */
-    updateRegions(regions) {
+    async updateRegions(regions) {
         if (!this.isReady) {
-            console.warn('[ForgeCoupleDirectInterface] Not ready yet');
-            return false;
+            console.warn(`[ForgeCoupleDirectInterface] Not ready yet for ${this.mode} mode, attempting to initialize`);
+            const initialized = await this.initializeInterface();
+            if (!initialized) {
+                console.error(`[ForgeCoupleDirectInterface] Failed to initialize for ${this.mode} mode`);
+                return false;
+            }
         }
 
+        const maxRetries = 3;
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                console.log(`[ForgeCoupleDirectInterface] Updating regions for ${this.mode} mode (attempt ${attempt}/${maxRetries})`);
+
+                const fc = window.ForgeCouple;
+                const dataframe = fc.dataframe[this.mode];
+
+                if (!dataframe || !dataframe.body) {
+                    console.error(`[ForgeCoupleDirectInterface] Dataframe not found for ${this.mode} mode`);
+                    if (attempt < maxRetries) {
+                        this.ensureForgeCouplExists();
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        continue;
+                    }
+                    return false;
+                }
+
+                // Update the dataframe directly
+                this.updateDataframe(dataframe, regions);
+
+                // Update the JSON data in the entry field
+                if (fc.entryField && fc.entryField[this.mode]) {
+                    const mappingData = regions.map(r => [
+                        parseFloat(r.x1.toFixed(2)),
+                        parseFloat(r.x2.toFixed(2)),
+                        parseFloat(r.y1.toFixed(2)),
+                        parseFloat(r.y2.toFixed(2)),
+                        parseFloat(r.weight.toFixed(1))
+                    ]);
+
+                    fc.entryField[this.mode].value = JSON.stringify(mappingData);
+
+                    // Trigger the update - using the updateInput function if available
+                    if (window.updateInput) {
+                        window.updateInput(fc.entryField[this.mode]);
+                    } else {
+                        fc.entryField[this.mode].dispatchEvent(new Event('input', { bubbles: true }));
+                        fc.entryField[this.mode].dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                }
+
+                // Call ForgeCouple's update methods
+                if (fc.onEntry) {
+                    fc.onEntry(this.mode);
+                }
+
+                // Trigger preview update
+                if (fc.preview) {
+                    fc.preview(this.mode);
+                }
+
+                // Update the mapping component if it exists
+                this.updateMappingComponent(regions);
+
+                // Verify the update was successful
+                if (this.verifyRegionsUpdate(regions)) {
+                    console.log(`[ForgeCoupleDirectInterface] Successfully updated ${regions.length} regions for ${this.mode} mode`);
+                    return true;
+                } else {
+                    console.warn(`[ForgeCoupleDirectInterface] Region update verification failed for ${this.mode} mode`);
+                    if (attempt < maxRetries) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        continue;
+                    }
+                }
+
+            } catch (error) {
+                console.error(`[ForgeCoupleDirectInterface] Error updating regions (attempt ${attempt}/${maxRetries}):`, error);
+                if (attempt < maxRetries) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    continue;
+                }
+            }
+        }
+
+        console.error(`[ForgeCoupleDirectInterface] Failed to update regions for ${this.mode} mode after ${maxRetries} attempts`);
+        return false;
+    }
+
+    /**
+     * Verify that regions were successfully updated
+     * @param {Array} expectedRegions - Expected region data
+     * @returns {boolean} True if verification passes
+     */
+    verifyRegionsUpdate(expectedRegions) {
         try {
             const fc = window.ForgeCouple;
             const dataframe = fc.dataframe[this.mode];
 
             if (!dataframe || !dataframe.body) {
-                console.error('[ForgeCoupleDirectInterface] Dataframe not found');
                 return false;
             }
 
-            // Update the dataframe directly
-            this.updateDataframe(dataframe, regions);
-
-            // Update the JSON data in the entry field
-            if (fc.entryField && fc.entryField[this.mode]) {
-                const mappingData = regions.map(r => [
-                    parseFloat(r.x1.toFixed(2)),
-                    parseFloat(r.x2.toFixed(2)),
-                    parseFloat(r.y1.toFixed(2)),
-                    parseFloat(r.y2.toFixed(2)),
-                    parseFloat(r.weight.toFixed(1))
-                ]);
-
-                fc.entryField[this.mode].value = JSON.stringify(mappingData);
-                
-                // Trigger the update - using the updateInput function if available
-                if (window.updateInput) {
-                    window.updateInput(fc.entryField[this.mode]);
-                } else {
-                    fc.entryField[this.mode].dispatchEvent(new Event('input', { bubbles: true }));
-                    fc.entryField[this.mode].dispatchEvent(new Event('change', { bubbles: true }));
-                }
+            const rows = dataframe.body.querySelectorAll('tr');
+            if (rows.length !== expectedRegions.length) {
+                console.warn(`[ForgeCoupleDirectInterface] Row count mismatch: expected ${expectedRegions.length}, got ${rows.length}`);
+                return false;
             }
 
-            // Call ForgeCouple's update methods
-            if (fc.onEntry) {
-                fc.onEntry(this.mode);
+            // Verify mapping data is stored globally
+            if (!window.ForgeCoupleDirectMapping || !window.ForgeCoupleDirectMapping[this.mode]) {
+                console.warn(`[ForgeCoupleDirectInterface] Global mapping data not found for ${this.mode} mode`);
+                return false;
             }
 
-            // Trigger preview update
-            if (fc.preview) {
-                fc.preview(this.mode);
+            const globalMapping = window.ForgeCoupleDirectMapping[this.mode];
+            if (globalMapping.length !== expectedRegions.length) {
+                console.warn(`[ForgeCoupleDirectInterface] Global mapping count mismatch: expected ${expectedRegions.length}, got ${globalMapping.length}`);
+                return false;
             }
 
-            // Update the mapping component if it exists
-            this.updateMappingComponent(regions);
-
+            console.log(`[ForgeCoupleDirectInterface] Verification passed for ${this.mode} mode: ${expectedRegions.length} regions`);
             return true;
         } catch (error) {
-            console.error('[ForgeCoupleDirectInterface] Error updating regions:', error);
+            console.error('[ForgeCoupleDirectInterface] Verification error:', error);
             return false;
         }
     }
