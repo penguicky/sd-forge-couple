@@ -121,32 +121,7 @@ if (window.BackendBridge) {
       }
     }
 
-    /**
-     * Validate region configuration
-     * @param {Array} regions - Regions to validate
-     * @returns {Promise} Validation result
-     */
-    async validateRegions(regions) {
-      const requestData = {
-        regions: regions.map((r) => ({
-          bbox: [r.x1, r.y1, r.x2, r.y2],
-          weight: r.weight,
-          prompt: r.prompt,
-        })),
-      };
-
-      try {
-        const response = await this.makeRequest(
-          "POST",
-          `${this.apiEndpoint}/validate`,
-          requestData
-        );
-        return response;
-      } catch (error) {
-        console.error("[BackendBridge] Validation failed:", error);
-        return { valid: false, errors: [error.message] };
-      }
-    }
+    // Validation removed - now handled by unified sync system
 
     /**
      * Make HTTP request with retry logic

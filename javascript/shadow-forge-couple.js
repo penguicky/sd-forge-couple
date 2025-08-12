@@ -14,6 +14,17 @@
     constructor(shadowRoot, mode) {
       this.shadowRoot = shadowRoot;
       this.mode = mode;
+      this.instanceId = `${mode}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Version tracking for cache busting
+      this.version = "1.6.0";
+
+      // Debug mode for logging
+      this.debugMode = false;
+
+      // Initialize mode cache and initialization flag
+      this._modeCache = null;
+      this._isInitializing = false;
       this.canvas = null;
       this.ctx = null;
       this.tableBody = null;
@@ -31,6 +42,12 @@
       this.imageGenerationObserver = null;
       this.lastLoadedImageSrc = null;
       this.periodicCheckInterval = null;
+
+      // Paste field watcher for parameter paste functionality
+      this.originalPasteField = null;
+      this.pasteFieldObserver = null;
+      this.pasteFieldCheckInterval = null;
+      this.pasteFieldWatcherAttached = false;
 
       // Interaction state
       this.dragState = {
@@ -58,9 +75,7 @@
         "#91001bff",
       ];
 
-      // Initialize direct interface
-      this.directInterface = null;
-      this.initializeDirectInterface();
+      // Direct interface replaced by unified sync system
 
       this.init();
     }
@@ -84,47 +99,7 @@
       this.initializeDefaultRegions();
     }
 
-    /**
-     * Initialize direct interface for backend communication
-     */
-    initializeDirectInterface() {
-      // Create direct interface immediately - it will handle ForgeCouple creation and be ready immediately
-      this.directInterface = new ForgeCoupleDirectInterface(this.mode);
-    }
-
-    /**
-     * Setup state manager integration
-     */
-    setupStateManager() {
-      if (!window.ForgeCoupleStateManager) {
-        console.error('[ShadowForgeCouple] State manager not available');
-        return;
-      }
-
-      this.stateManager = window.ForgeCoupleStateManager.getInstance();
-
-      // Listen for state changes from other sources
-      this.stateUnsubscribe = this.stateManager.addListener(this.mode, (regions, source) => {
-        if (source !== 'shadow-dom') {
-          console.log(`[ShadowForgeCouple] Received state update from ${source} for ${this.mode}`);
-          this.regions = [...regions];
-          this.updateCanvas();
-          this.updateTable();
-        }
-      });
-
-      console.log(`[ShadowForgeCouple] State manager integration setup for ${this.mode}`);
-    }
-
-    /**
-     * Setup debug logging integration
-     */
-    setupDebugLogging() {
-      if (window.ForgeCoupleDebug) {
-        this.debugUtil = window.ForgeCoupleDebug.getInstance();
-        this.debugUtil.log('info', `ShadowForgeCouple initialized for ${this.mode}`, null, 'shadow-dom');
-      }
-    }
+    // Direct interface initialization removed - using unified sync system
 
     setupCanvasDimensions() {
       // Try to get resolution from WebUI settings
@@ -424,15 +399,206 @@
       });
     }
 
+    setupPasteFieldWatcher() {
+      // Watch for changes in the original gradio paste field for parameter paste functionality
+      const watchPasteField = () => {
+        const mode = this.mode === "t2i" ? "t2i" : "i2i";
+        const pasteFieldSelectors = [
+          `#forge_couple_${mode} .fc_paste_field textarea`,
+          `#forge_couple_${mode} .fc_paste_field input`,
+          `.fc_paste_field textarea`,
+          `.fc_paste_field input`
+        ];
+
+        let pasteField = null;
+        for (const selector of pasteFieldSelectors) {
+          pasteField = document.querySelector(selector);
+          if (pasteField) break;
+        }
+
+        if (pasteField && !this.pasteFieldWatcherAttached) {
+          // Store reference to the paste field
+          this.originalPasteField = pasteField;
+
+          // Check if there's already data in the field (from previous paste)
+          if (pasteField.value && pasteField.value.trim()) {
+            if (this.debugMode) {
+              console.log("[ShadowForgeCouple] Found existing paste data on initialization:", pasteField.value);
+            }
+            // Process existing data immediately
+            setTimeout(() => this.handlePasteFieldChange(), 100);
+          }
+
+          // Set up mutation observer to watch for value changes
+          this.pasteFieldObserver = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+              if (mutation.type === 'attributes' && mutation.attributeName === 'value') {
+                this.handlePasteFieldChange();
+              }
+            });
+          });
+
+          // Observe attribute changes on the paste field
+          this.pasteFieldObserver.observe(pasteField, {
+            attributes: true,
+            attributeFilter: ['value']
+          });
+
+          // Also listen for input events as a fallback
+          this.resourceManager.addEventListener(pasteField, "input", () => {
+            this.handlePasteFieldChange();
+          });
+
+          // Listen for change events (most reliable for gradio components)
+          this.resourceManager.addEventListener(pasteField, "change", () => {
+            this.handlePasteFieldChange();
+          });
+
+          // Periodic check as additional fallback
+          this.pasteFieldCheckInterval = setInterval(() => {
+            if (this.originalPasteField && this.originalPasteField.value && this.originalPasteField.value.trim()) {
+              this.handlePasteFieldChange();
+            }
+          }, 500);
+
+          this.pasteFieldWatcherAttached = true;
+
+          if (this.debugMode) {
+            console.log("[ShadowForgeCouple] Paste field watcher attached for mode:", mode);
+          }
+        }
+      };
+
+      // Initial setup
+      watchPasteField();
+
+      // Retry periodically in case the paste field isn't available yet
+      const watchInterval = setInterval(() => {
+        if (this.pasteFieldWatcherAttached) {
+          clearInterval(watchInterval);
+        } else {
+          watchPasteField();
+        }
+      }, 1000);
+
+      // Clean up after 30 seconds if still not found
+      setTimeout(() => {
+        clearInterval(watchInterval);
+      }, 30000);
+    }
+
+    handlePasteFieldChange() {
+      if (!this.originalPasteField || !this.originalPasteField.value) {
+        return;
+      }
+
+      const pasteValue = this.originalPasteField.value.trim();
+      if (!pasteValue) {
+        return;
+      }
+
+      try {
+        // Parse the mapping data from the paste field
+        const mappingData = JSON.parse(pasteValue);
+
+        if (!Array.isArray(mappingData) || mappingData.length === 0) {
+          if (this.debugMode) {
+            console.log("[ShadowForgeCouple] Invalid mapping data - not an array or empty:", mappingData);
+          }
+          return;
+        }
+
+        if (this.debugMode) {
+          console.log("[ShadowForgeCouple] Received paste data:", mappingData);
+        }
+
+        // Convert mapping data to regions format
+        const regions = this.convertMappingToRegions(mappingData);
+
+        if (regions.length > 0) {
+          // Apply the regions to the shadow DOM
+          this.importConfig({ regions });
+
+          // Clear the paste field to prevent repeated processing
+          this.originalPasteField.value = "";
+
+          // Trigger an input event to notify gradio
+          const inputEvent = new Event('input', { bubbles: true });
+          this.originalPasteField.dispatchEvent(inputEvent);
+
+          if (this.debugMode) {
+            console.log("[ShadowForgeCouple] Applied paste data to shadow DOM:", regions);
+          }
+        }
+      } catch (error) {
+        console.error("[ShadowForgeCouple] Error parsing paste field data:", error);
+      }
+    }
+
+    convertMappingToRegions(mappingData) {
+      if (!Array.isArray(mappingData)) {
+        return [];
+      }
+
+      return mappingData.map((item, index) => {
+        // Handle array format [x1, x2, y1, y2, weight]
+        let x1, y1, x2, y2, weight;
+
+        if (Array.isArray(item) && item.length >= 5) {
+          x1 = item[0];
+          x2 = item[1];
+          y1 = item[2];
+          y2 = item[3];
+          weight = item[4];
+        } else if (Array.isArray(item) && item.length >= 4) {
+          // Fallback for shorter arrays
+          x1 = item[0] || 0;
+          x2 = item[1] || 1;
+          y1 = item[2] || 0;
+          y2 = item[3] || 1;
+          weight = item[4] || 1.0;
+        } else {
+          // Invalid format
+          return null;
+        }
+
+        // Ensure values are numbers and handle edge cases
+        const numX1 = parseFloat(x1);
+        const numY1 = parseFloat(y1);
+        const numX2 = parseFloat(x2);
+        const numY2 = parseFloat(y2);
+        const numWeight = parseFloat(weight);
+
+        return {
+          id: index + 1,
+          x1: isNaN(numX1) ? 0 : numX1,
+          y1: isNaN(numY1) ? 0 : numY1,
+          x2: isNaN(numX2) ? 1 : numX2,
+          y2: isNaN(numY2) ? 1 : numY2,
+          weight: isNaN(numWeight) ? 1.0 : numWeight,
+          prompt: '',
+          color: this.getColorForIndex(index)
+        };
+      }).filter(region => region !== null);
+    }
+
     setupBackendIntegration() {
       // Find the forge-couple mapping JSON component
       this.findMappingComponent();
 
       // Set up generation hook to sync right before generation
       this.setupGenerationHook();
+
+      // Set up paste field monitoring for parameter paste functionality
+      this.setupPasteFieldWatcher();
     }
 
     setupGenerationHook() {
+      // Consolidated generation detection - only hook the primary method
+      this.setupPrimaryGenerationHook();
+    }
+
+    setupPrimaryGenerationHook() {
       // Hook into the generate button clicks to sync right before generation
       const generateButtons = document.querySelectorAll(
         "#txt2img_generate, #img2img_generate"
@@ -453,88 +619,11 @@
           );
         }
       });
-
-      // Also hook into form submissions and API calls
-      this.hookFormSubmissions();
-
-      // Set up additional generation detection via MutationObserver
-      this.setupGenerationObserver();
     }
 
-    setupGenerationObserver() {
-      // Watch for changes in the progress bar or generation status
-      // This catches generation events that might not trigger button clicks
-      const progressContainer = document.querySelector(
-        "#txt2img_results, #img2img_results"
-      );
+    // Removed redundant setupGenerationObserver - button click hook is sufficient
 
-      if (progressContainer && !this.generationObserver) {
-        this.generationObserver = new MutationObserver((mutations) => {
-          mutations.forEach((mutation) => {
-            // Look for changes that indicate generation is starting
-            if (
-              mutation.type === "childList" ||
-              mutation.type === "attributes"
-            ) {
-              const progressBar = document.querySelector(
-                ".progress-bar, [data-testid='progress-bar']"
-              );
-              if (progressBar && progressBar.style.display !== "none") {
-                this.forceSyncToBackend();
-              }
-            }
-          });
-        });
-
-        this.generationObserver.observe(progressContainer, {
-          childList: true,
-          subtree: true,
-          attributes: true,
-          attributeFilter: ["style", "class"],
-        });
-      }
-    }
-
-    hookFormSubmissions() {
-      // Hook into gradio form submissions
-      const forms = document.querySelectorAll("form");
-      forms.forEach((form) => {
-        if (!form._forgeCoupleHooked) {
-          form._forgeCoupleHooked = true;
-          form.addEventListener(
-            "submit",
-            () => {
-              this.forceSyncToBackend();
-            },
-            { capture: true }
-          );
-        }
-      });
-
-      // Hook into fetch API calls (gradio uses fetch for API calls)
-      if (!window._forgeCoupleAPIHooked) {
-        window._forgeCoupleAPIHooked = true;
-        const originalFetch = window.fetch;
-        window.fetch = function (...args) {
-          const url = args[0];
-          if (
-            typeof url === "string" &&
-            (url.includes("/api/") || url.includes("predict"))
-          ) {
-            // Get the shadow forge couple instance and sync
-            const shadowContainers = document.querySelectorAll(
-              "shadow-forge-couple-container"
-            );
-            shadowContainers.forEach((container) => {
-              if (container.forgeCoupleInstance) {
-                container.forgeCoupleInstance.forceSyncToBackend();
-              }
-            });
-          }
-          return originalFetch.apply(this, args);
-        };
-      }
-    }
+    // Removed redundant hookFormSubmissions - backend hook handles API interception
 
     findMappingComponent() {
       try {
@@ -631,163 +720,66 @@
      */
     syncToBackend() {
       // Only sync when in Advanced mode
-      if (!this.directInterface.isAdvancedMode()) {
+      if (!this.isAdvancedMode()) {
         return;
       }
 
-      // Use state manager for centralized updates
-      if (this.stateManager) {
-        this.debugUtil?.log('info', `Syncing ${this.regions.length} regions to state manager`, { regions: this.regions.length }, 'shadow-dom');
-        const success = this.stateManager.updateRegions(this.mode, this.regions, 'shadow-dom');
-        if (success) {
-          console.log(`[ShadowForgeCouple] Successfully synced ${this.regions.length} regions to state manager for ${this.mode}`);
-          this.debugUtil?.log('info', 'Sync to state manager successful', { regions: this.regions.length }, 'shadow-dom');
-        } else {
-          console.warn(`[ShadowForgeCouple] Failed to sync regions to state manager for ${this.mode}`);
-          this.debugUtil?.log('warn', 'Sync to state manager failed', { regions: this.regions.length }, 'shadow-dom');
-        }
-      } else {
-        // Fallback to direct interface if state manager not available
-        console.warn('[ShadowForgeCouple] State manager not available, using direct interface fallback');
-        this.debugUtil?.log('warn', 'State manager not available, using fallback', null, 'shadow-dom');
-        const regionsWithPrompts = this.regions.map(region => ({
-          x1: region.x1,
-          y1: region.y1,
-          x2: region.x2,
-          y2: region.y2,
-          weight: region.weight,
-          prompt: region.prompt
-        }));
-        this.directInterface.updateRegions(regionsWithPrompts);
+      // Prepare region data with prompts
+      const regionsWithPrompts = this.regions.map(region => ({
+        x1: region.x1,
+        y1: region.y1,
+        x2: region.x2,
+        y2: region.y2,
+        weight: region.weight,
+        prompt: region.prompt
+      }));
+
+      // Use unified sync system
+      if (window.ForgeCoupleUnifiedSync) {
+        window.ForgeCoupleUnifiedSync.syncToBackend(this.mode, regionsWithPrompts);
       }
     }
 
+    isAdvancedMode() {
+      // Cache the result for 100ms to prevent excessive DOM queries
+      const now = Date.now();
+      if (this._modeCache && (now - this._modeCache.timestamp) < 100) {
+        return this._modeCache.mode === "Advanced";
+      }
 
-
-
-    updateOriginalDataframe(mappingData) {
       try {
-        const dataframe = window.ForgeCouple.dataframe[this.mode];
-        if (!dataframe || !dataframe.body) return;
-
-        // Clear existing rows
-        while (dataframe.body.querySelector("tr")) {
-          dataframe.body.deleteRow(0);
+        const accordion = document.querySelector(`#forge_couple_${this.mode}`);
+        if (!accordion) {
+          this._modeCache = { mode: "Unknown", timestamp: now };
+          return false;
         }
 
-        // Add new rows based on our regions
-        mappingData.forEach((mapping, index) => {
-          const [x1, y1, x2, y2, weight] = mapping;
-          const tr = dataframe.body.insertRow();
+        const modeRadio = accordion.querySelector('input[type="radio"][value="Advanced"]:checked');
+        const isAdvanced = !!modeRadio;
 
-          // Create cells: x1, x2, y1, y2, w, prompt
-          const values = [
-            x1.toFixed(2),
-            x2.toFixed(2),
-            y1.toFixed(2),
-            y2.toFixed(2),
-            weight.toFixed(1),
-            this.regions[index]?.prompt || "",
-          ];
-
-          values.forEach((value) => {
-            const td = tr.insertCell();
-            td.contentEditable = true;
-            td.textContent = value;
-
-            // Add event listeners similar to original
-            td.addEventListener("keydown", (e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                td.blur();
-              }
-            });
-
-            td.addEventListener("blur", () => {
-              // Update our regions when original dataframe changes
-              this.syncFromOriginalDataframe();
-            });
-
-            td.onclick = () => {
-              // Select corresponding region in our interface
-              if (index < this.regions.length) {
-                this.selectRegion(this.regions[index]);
-                this.updateCanvas();
-                this.updateTable();
-              }
-            };
-          });
-        });
+        // Cache the result
+        this._modeCache = { mode: isAdvanced ? "Advanced" : "Other", timestamp: now };
+        return isAdvanced;
       } catch (error) {
-        // Error updating original dataframe
+        this._modeCache = { mode: "Unknown", timestamp: now };
+        return false;
       }
     }
 
-    syncFromOriginalDataframe() {
-      try {
-        const dataframe = window.ForgeCouple.dataframe[this.mode];
-        if (!dataframe || !dataframe.body) return;
 
-        const rows = dataframe.body.querySelectorAll("tr");
-        const newRegions = [];
 
-        rows.forEach((row, index) => {
-          const cells = row.querySelectorAll("td");
-          if (cells.length >= 6) {
-            const x1 = parseFloat(cells[0].textContent) || 0;
-            const x2 = parseFloat(cells[1].textContent) || 1;
-            const y1 = parseFloat(cells[2].textContent) || 0;
-            const y2 = parseFloat(cells[3].textContent) || 1;
-            const weight = parseFloat(cells[4].textContent) || 1;
-            const prompt = cells[5].textContent || "";
 
-            // Create or update region
-            if (index < this.regions.length) {
-              // Update existing region
-              const region = this.regions[index];
-              region.x1 = x1;
-              region.x2 = x2;
-              region.y1 = y1;
-              region.y2 = y2;
-              region.weight = weight;
-              region.prompt = prompt;
-            } else {
-              // Create new region
-              const region = {
-                id: this.nextRegionId++,
-                x1,
-                y1,
-                x2,
-                y2,
-                weight,
-                prompt,
-                color: this.getNextColor(),
-              };
-              newRegions.push(region);
-            }
-          }
-        });
+    // Removed updateOriginalDataframe - fallback dataframe sync no longer needed
 
-        // Add new regions
-        this.regions.push(...newRegions);
-
-        // Remove excess regions
-        if (rows.length < this.regions.length) {
-          this.regions = this.regions.slice(0, rows.length);
-        }
-
-        this.updateCanvas();
-        this.updateTable();
-      } catch (error) {
-        // Error syncing from original dataframe
-      }
-    }
+    // Removed syncFromOriginalDataframe - fallback dataframe reading no longer needed
 
     initializeDefaultRegions() {
-      // Only initialize if we don't already have regions
-      if (this.regions.length > 0) {
+      // Prevent multiple initializations
+      if (this._isInitializing || this.regions.length > 0) {
         return;
       }
+
+      this._isInitializing = true;
 
       // Get prompts from WebUI and split by separator
       const webUIPrompts = this.getWebUIPrompts();
@@ -826,10 +818,15 @@
       this.updateCanvas();
       this.updateTable();
 
-      // Force immediate sync to backend after initialization
-      setTimeout(() => {
-        this.syncToBackend();
-      }, 500);
+      this._isInitializing = false;
+
+      // Only auto-sync if we're in Advanced mode and this is the active tab
+      if (this.isAdvancedMode()) {
+        // Small delay to ensure DOM is ready
+        setTimeout(() => {
+          this.syncToBackend();
+        }, 100);
+      }
     }
 
     getWebUIPrompts() {
@@ -909,6 +906,10 @@
       return this.colorPalette[index];
     }
 
+    getColorForIndex(index) {
+      return this.colorPalette[index % this.colorPalette.length];
+    }
+
     addRegion() {
       const region = this.createRegion();
       this.updateCanvas();
@@ -943,6 +944,7 @@
       this.regions = [];
       this.selectedRegion = null;
       this.nextRegionId = 1;
+      this._isInitializing = false; // Reset initialization flag
       this.updateCanvas();
       this.updateTable();
       this.autoSyncToBackend(); // Auto-sync when all regions are cleared
@@ -1659,7 +1661,7 @@
     }
 
     handleTableChange(e) {
-      // Handle validation and clamping when user finishes editing (blur/change)
+      // Simplified validation - comprehensive validation happens in unified sync
       const row = e.target.closest("tr");
       if (!row) return;
 
@@ -1673,31 +1675,18 @@
       if (field !== "prompt") {
         const numValue = parseFloat(value);
         if (!isNaN(numValue)) {
-          // Apply clamping and validation on change/blur
-          region[field] = Math.max(
-            0,
-            Math.min(field === "weight" ? 5 : 1, numValue)
-          );
+          // Store raw value - validation happens during sync
+          region[field] = numValue;
 
-          // Ensure valid bounds between coordinates
-          if (field === "x1" && region.x1 >= region.x2)
-            region.x2 = Math.min(1, region.x1 + 0.01);
-          if (field === "x2" && region.x2 <= region.x1)
-            region.x1 = Math.max(0, region.x2 - 0.01);
-          if (field === "y1" && region.y1 >= region.y2)
-            region.y2 = Math.min(1, region.y1 + 0.01);
-          if (field === "y2" && region.y2 <= region.y1)
-            region.y1 = Math.max(0, region.y2 - 0.01);
-
-          // Update the input field with the clamped value
-          e.target.value = region[field].toFixed(field === "weight" ? 1 : 2);
+          // Update display with formatted value
+          e.target.value = numValue.toFixed(field === "weight" ? 1 : 2);
         } else {
           // Invalid number, reset to previous valid value
           e.target.value = region[field].toFixed(field === "weight" ? 1 : 2);
         }
 
         this.updateCanvas();
-        this.autoSyncToBackend(); // Auto-sync when table values change
+        this.autoSyncToBackend(); // Validation happens here
       }
     }
 
@@ -1769,25 +1758,43 @@
     }
 
     detectCurrentForgeCoupleMode() {
+      // Cache the result for 100ms to prevent excessive DOM queries
+      const now = Date.now();
+      if (this._modeCache && (now - this._modeCache.timestamp) < 100) {
+        return this._modeCache.mode;
+      }
+
       try {
         const accordion = document.querySelector(
           "#forge_couple_t2i, #forge_couple_i2i"
         );
-        if (!accordion) return "Unknown";
+        if (!accordion) {
+          return "Unknown";
+        }
 
         const modeRadios = accordion.querySelectorAll('input[type="radio"]');
+
         for (const radio of modeRadios) {
           if (radio.checked) {
             const value = radio.value;
+            let detectedMode = "Unknown";
             if (value.includes("Advanced") || value.includes("advanced"))
-              return "Advanced";
-            if (value.includes("Basic") || value.includes("basic"))
-              return "Basic";
-            if (value.includes("Mask") || value.includes("mask")) return "Mask";
+              detectedMode = "Advanced";
+            else if (value.includes("Basic") || value.includes("basic"))
+              detectedMode = "Basic";
+            else if (value.includes("Mask") || value.includes("mask"))
+              detectedMode = "Mask";
+
+            // Cache the result
+            this._modeCache = { mode: detectedMode, timestamp: now };
+            return detectedMode;
           }
         }
+
+        this._modeCache = { mode: "Unknown", timestamp: now };
         return "Unknown";
       } catch (error) {
+        this._modeCache = { mode: "Unknown", timestamp: now };
         return "Unknown";
       }
     }
@@ -2133,7 +2140,7 @@
         this.updateCanvas();
         this.updateTable();
       } catch (error) {
-        // Failed to import configuration
+        console.error("[ShadowForgeCouple] Failed to import configuration:", error);
       }
     }
 
@@ -2222,11 +2229,18 @@
         this.autoSyncTimeout = null;
       }
 
-      // Disconnect generation observer
-      if (this.generationObserver) {
-        this.generationObserver.disconnect();
-        this.generationObserver = null;
+      // Clear paste field watcher
+      if (this.pasteFieldObserver) {
+        this.pasteFieldObserver.disconnect();
+        this.pasteFieldObserver = null;
       }
+
+      if (this.pasteFieldCheckInterval) {
+        clearInterval(this.pasteFieldCheckInterval);
+        this.pasteFieldCheckInterval = null;
+      }
+
+      // Generation observer was removed - no cleanup needed
 
       if (this.imageGenerationObserver) {
         this.imageGenerationObserver.disconnect();
@@ -2238,11 +2252,7 @@
         this.periodicCheckInterval = null;
       }
 
-      // Clean up direct interface
-      if (this.directInterface) {
-        this.directInterface.destroy();
-        this.directInterface = null;
-      }
+      // Direct interface replaced by unified sync system - no cleanup needed
 
       this.resourceManager.cleanup();
       this.regions = [];

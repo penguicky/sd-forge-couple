@@ -6,13 +6,12 @@
   "use strict";
 
   // Configuration - use bundled approach to avoid path issues
+  const PASTE_BRIDGE_SCRIPT = "forge-couple-paste-bridge.js";
   const BUNDLE_SCRIPT = "shadow-dom-bundle.js";
   const REMAINING_SCRIPTS = [
-    "forge-couple-debug.js",
-    "forge-couple-state-manager.js",
+    "unified-sync.js",
     "shadow-forge-couple.js",
     "shadow-dom-container.js",
-    "direct-backend-hook.js",
   ];
 
   // Note: backend-bridge.js, event-bridge.js, and resource-manager.js are included in the bundle
@@ -67,6 +66,14 @@
       // Additional check for specific classes being available
       const filename = src.split("/").pop();
       if (
+        filename === "forge-couple-paste-bridge.js" &&
+        window.ForgeCoupleGlobalPasteBridge
+      ) {
+        resolve();
+        return;
+      }
+
+      if (
         filename === "shadow-dom-bundle.js" &&
         window.ResourceManager &&
         window.EventBridge &&
@@ -117,7 +124,10 @@
    */
   async function loadAllScripts() {
     try {
-      // First load the bundle with core classes
+      // First load the global paste bridge
+      await loadScript(SCRIPT_BASE_PATH + PASTE_BRIDGE_SCRIPT);
+
+      // Then load the bundle with core classes
       await loadScript(SCRIPT_BASE_PATH + BUNDLE_SCRIPT);
 
       // Then load the remaining scripts
@@ -155,20 +165,6 @@
     );
 
     if (missingClasses.length > 0) {
-      console.error(
-        `[ShadowDOMLoader] Missing classes: ${missingClasses.join(", ")}`
-      );
-      console.log(
-        "[ShadowDOMLoader] Available window properties:",
-        Object.keys(window).filter(
-          (k) =>
-            k.includes("Resource") ||
-            k.includes("Event") ||
-            k.includes("Backend") ||
-            k.includes("Shadow") ||
-            k.includes("ForgeCouple")
-        )
-      );
       throw new Error(`Missing required classes: ${missingClasses.join(", ")}`);
     }
 
@@ -338,22 +334,105 @@
    * Replace original forge-couple advanced mode with Shadow DOM version
    */
   function replaceForgeCoupleAdvancedMode() {
-    // Ensure ForgeCouple global exists before creating shadow containers
+    // Prevent multiple initializations
+    if (window._forgeCoupleInitialized) {
+      return;
+    }
+
+    // Enhanced ForgeCouple global for compatibility with parameter paste system
     if (!window.ForgeCouple) {
       window.ForgeCouple = {
-        dataframe: {
-          t2i: { body: document.createElement('tbody') },
-          i2i: { body: document.createElement('tbody') }
-        },
-        entryField: {
-          t2i: document.createElement('input'),
-          i2i: document.createElement('input')
-        },
         onEntry: () => {
           // Silent operation to prevent feedback loops
         },
         preview: () => {
           // Silent operation to prevent feedback loops
+        },
+        onPaste: (mode) => {
+          // Bridge parameter paste to shadow DOM
+          console.log(`[ShadowDOMLoader] ForgeCouple.onPaste called for mode: ${mode}`);
+
+          let pasteValue = null;
+          let pasteField = null;
+
+          // First, try to find the paste field for this mode
+          const pasteFieldSelectors = [
+            `#forge_couple_${mode} .fc_paste_field textarea`,
+            `#forge_couple_${mode} .fc_paste_field input`,
+            `.fc_paste_field textarea`,
+            `.fc_paste_field input`
+          ];
+
+          for (const selector of pasteFieldSelectors) {
+            pasteField = document.querySelector(selector);
+            if (pasteField && pasteField.value && pasteField.value.trim()) {
+              pasteValue = pasteField.value.trim();
+              break;
+            }
+          }
+
+          // If no current paste data, check for early paste data
+          if (!pasteValue && window._forgeCoupleEarlyPasteData && window._forgeCoupleEarlyPasteData[mode]) {
+            pasteValue = window._forgeCoupleEarlyPasteData[mode];
+            console.log(`[ShadowDOMLoader] Using early paste data for ${mode}: ${pasteValue}`);
+            // Clear early paste data after use
+            delete window._forgeCoupleEarlyPasteData[mode];
+          }
+
+          if (pasteValue) {
+            console.log(`[ShadowDOMLoader] Found paste data: ${pasteValue}`);
+
+            try {
+              const mappingData = JSON.parse(pasteValue);
+
+              // Find the shadow container for this mode
+              const shadowHost = document.querySelector(`.forge-couple-shadow-host[data-mode="${mode}"]`);
+              if (shadowHost && shadowHost.shadowContainer && shadowHost.shadowContainer.forgeCoupleInstance) {
+                console.log(`[ShadowDOMLoader] Applying paste data to shadow DOM for ${mode}`);
+
+                // Convert mapping data to regions format
+                const regions = mappingData.map((item, index) => {
+                  if (Array.isArray(item) && item.length >= 5) {
+                    return {
+                      id: index + 1,
+                      x1: parseFloat(item[0]) || 0,
+                      y1: parseFloat(item[2]) || 0,
+                      x2: parseFloat(item[1]) || 1,
+                      y2: parseFloat(item[3]) || 1,
+                      weight: parseFloat(item[4]) || 1.0,
+                      prompt: '',
+                      color: `#${Math.floor(Math.random()*16777215).toString(16)}`
+                    };
+                  }
+                  return null;
+                }).filter(region => region !== null);
+
+                if (regions.length > 0) {
+                  shadowHost.shadowContainer.forgeCoupleInstance.importConfig({ regions });
+                  console.log(`[ShadowDOMLoader] Successfully applied ${regions.length} regions to shadow DOM`);
+
+                  // Clear the paste field after a delay to prevent repeated processing
+                  if (pasteField) {
+                    setTimeout(() => {
+                      pasteField.value = "";
+                    }, 100);
+                  }
+                } else {
+                  console.warn(`[ShadowDOMLoader] No valid regions found in paste data`);
+                }
+              } else {
+                console.warn(`[ShadowDOMLoader] No shadow container found for mode: ${mode}`);
+                // Store the data for later if shadow DOM isn't ready yet
+                if (!window._forgeCoupleEarlyPasteData) window._forgeCoupleEarlyPasteData = {};
+                window._forgeCoupleEarlyPasteData[mode] = pasteValue;
+                console.log(`[ShadowDOMLoader] Stored paste data for later use when shadow DOM is ready`);
+              }
+            } catch (error) {
+              console.error(`[ShadowDOMLoader] Error processing paste data:`, error);
+            }
+          } else {
+            console.warn(`[ShadowDOMLoader] No paste data found for mode: ${mode}`);
+          }
         }
       };
     }
@@ -393,10 +472,20 @@
         "input, textarea, select"
       );
       gradioComponents.forEach((el) => {
-        el.style.position = "absolute";
-        el.style.left = "-9999px";
-        el.style.visibility = "hidden";
-        el.style.pointerEvents = "none";
+        // Special handling for paste field - keep it more accessible for parameter paste system
+        if (el.closest('.fc_paste_field')) {
+          console.log(`[ShadowDOMLoader] Found paste field for ${mode}, keeping it accessible:`, el);
+          // For paste field, just hide it but keep it in the DOM flow
+          el.style.display = "none";
+          // Ensure it can still receive events and updates
+          el.style.pointerEvents = "auto";
+        } else {
+          // For other components, use the original hiding method
+          el.style.position = "absolute";
+          el.style.left = "-9999px";
+          el.style.visibility = "hidden";
+          el.style.pointerEvents = "none";
+        }
       });
 
       // Add our shadow DOM interface on top
@@ -416,12 +505,91 @@
 
         // Store reference for external access
         shadowHost.shadowContainer = shadowContainer;
+
+        // Register with global paste bridge if available
+        if (window.forgeCoupleGlobalPasteBridge) {
+          window.forgeCoupleGlobalPasteBridge.registerShadowContainer(mode, shadowContainer);
+          console.log(`[ShadowDOMLoader] Registered shadow container with global paste bridge for ${mode}`);
+        }
+
+        // Check for early paste data and apply it
+        if (window._forgeCoupleEarlyPasteData && window._forgeCoupleEarlyPasteData[mode]) {
+          console.log(`[ShadowDOMLoader] Applying early paste data to newly created shadow container for ${mode}`);
+          setTimeout(() => {
+            if (window.ForgeCouple && window.ForgeCouple.onPaste) {
+              window.ForgeCouple.onPaste(mode);
+            }
+          }, 100);
+        }
       } catch (error) {
-        console.error(
-          `[ShadowDOMLoader] Failed to initialize ${mode} Shadow DOM:`,
-          error
-        );
+        // Silent error handling - initialization failed
       }
+    });
+
+    // Mark as initialized to prevent multiple calls
+    window._forgeCoupleInitialized = true;
+  }
+
+  /**
+   * Set up global paste field monitoring for early paste events
+   */
+  function setupGlobalPasteFieldMonitoring() {
+    // Store paste data that arrives before shadow DOM is ready
+    window._forgeCoupleEarlyPasteData = window._forgeCoupleEarlyPasteData || {};
+
+    // Monitor all paste fields for changes
+    const pasteFieldObserver = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'childList') {
+          mutation.addedNodes.forEach((node) => {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              // Check for paste fields in added nodes
+              const pasteFields = node.querySelectorAll ? node.querySelectorAll('.fc_paste_field textarea, .fc_paste_field input') : [];
+              pasteFields.forEach(field => setupPasteFieldListener(field));
+
+              // Check if the node itself is a paste field
+              if (node.matches && node.matches('.fc_paste_field textarea, .fc_paste_field input')) {
+                setupPasteFieldListener(node);
+              }
+            }
+          });
+        }
+      });
+    });
+
+    // Set up listener for a paste field
+    function setupPasteFieldListener(field) {
+      if (field._forgeCoupleListenerAttached) return;
+      field._forgeCoupleListenerAttached = true;
+
+      const handlePasteFieldChange = () => {
+        if (field.value && field.value.trim()) {
+          const mode = field.closest('#forge_couple_t2i') ? 't2i' :
+                      field.closest('#forge_couple_i2i') ? 'i2i' : 'unknown';
+
+          console.log(`[ShadowDOMLoader] Early paste data detected for ${mode}: ${field.value}`);
+
+          // Store the data for later use
+          window._forgeCoupleEarlyPasteData[mode] = field.value.trim();
+
+          // Try to apply immediately if shadow DOM is ready
+          if (window.ForgeCouple && window.ForgeCouple.onPaste) {
+            setTimeout(() => window.ForgeCouple.onPaste(mode), 50);
+          }
+        }
+      };
+
+      field.addEventListener('input', handlePasteFieldChange);
+      field.addEventListener('change', handlePasteFieldChange);
+    }
+
+    // Set up initial listeners for existing fields
+    document.querySelectorAll('.fc_paste_field textarea, .fc_paste_field input').forEach(setupPasteFieldListener);
+
+    // Start observing
+    pasteFieldObserver.observe(document.body, {
+      childList: true,
+      subtree: true
     });
   }
 
@@ -429,6 +597,9 @@
    * Set up observers for dynamic content
    */
   function setupObservers() {
+    // Set up global paste field monitoring
+    setupGlobalPasteFieldMonitoring();
+
     // Observer for forge-couple containers appearing dynamically
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {

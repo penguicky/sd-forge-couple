@@ -212,6 +212,8 @@ class ForgeCouple(scripts.Script):
             fc_param["forge_couple_direction"] = direction
         if mode == "Advanced":
             fc_param["forge_couple_mapping"] = dumps(mapping)
+            # Debug: Log advanced mode mapping data
+            logger.info(f"[ForgeCouple] Advanced mode mapping data: {mapping}")
         else:
             fc_param["forge_couple_background"] = background
             fc_param["forge_couple_background_weight"] = background_weight
@@ -237,6 +239,9 @@ class ForgeCouple(scripts.Script):
         *args,
         **kwargs,
     ):
+        # Debug: Log the received parameters to help diagnose paste issues
+        logger.info(f"[ForgeCouple] Backend received - enable: {enable}, mode: {mode}, mapping: {mapping}")
+
         if (not enable) or (self.couples is None) or (not self.valid):
             return
 

@@ -226,7 +226,9 @@
         data &&
         (method === "POST" || method === "PUT" || method === "PATCH")
       ) {
-        options.body = JSON.stringify(data);
+        // Ensure data is properly formatted to avoid "too many arguments" errors
+        const requestBody = typeof data === 'object' && data !== null ? data : { data };
+        options.body = JSON.stringify(requestBody);
       }
 
       let lastError;
@@ -270,6 +272,7 @@
     constructor(mode) {
       this.mode = mode; // 't2i' or 'i2i'
       this.isReady = false;
+      this.version = "1.5.2";
 
       // Ensure ForgeCouple global exists immediately
       this.ensureForgeCouple();
@@ -350,6 +353,13 @@
       if (!this.isReady) {
         return false;
       }
+
+      // Prevent redundant updates with the same data
+      const regionsKey = JSON.stringify(regions.map(r => [r.x1, r.x2, r.y1, r.y2, r.weight]));
+      if (this._lastRegionsKey === regionsKey) {
+        return true; // Already updated with this data
+      }
+      this._lastRegionsKey = regionsKey;
 
       try {
         const fc = window.ForgeCouple;
@@ -511,52 +521,36 @@
         if (!window.ForgeCoupleDirectMapping) {
           window.ForgeCoupleDirectMapping = {};
         }
+
+        // Prevent overwriting existing custom data with defaults
+        const existingData = window.ForgeCoupleDirectMapping[this.mode];
+        if (existingData && existingData.length > 0) {
+          const isExistingCustom = existingData.some(region =>
+            region[0] !== 0 || region[1] !== 1 || region[2] !== 0 || region[3] !== 1 || region[4] !== 1
+          );
+          const isNewDefault = mappingData.every(region =>
+            region[0] === 0 && region[1] === 1 && region[2] === 0 && region[3] === 1 && region[4] === 1
+          );
+
+          if (isExistingCustom && isNewDefault) {
+            // Don't overwrite custom data with defaults - preserve existing custom data
+            return;
+          }
+        }
+
         window.ForgeCoupleDirectMapping[this.mode] = mappingData;
 
         // Also update the ForgeCouple dataframe for compatibility
         this.updateDataframe(window.ForgeCouple.dataframe[this.mode], regions);
       } catch (error) {
-        // Silent fail - mapping component update not critical
+        console.error('[ForgeCoupleDirectInterface] Error in updateMappingComponent:', error);
+        console.error('[ForgeCoupleDirectInterface] Regions data:', regions);
       }
     }
 
 
 
-    /**
-     * Get current regions from ForgeCouple
-     * @returns {Array} Array of region objects
-     */
-    getRegions() {
-      if (!this.isReady) return [];
-
-      try {
-        const fc = window.ForgeCouple;
-        const dataframe = fc.dataframe[this.mode];
-
-        if (!dataframe || !dataframe.body) return [];
-
-        const rows = dataframe.body.querySelectorAll('tr');
-        const regions = [];
-
-        rows.forEach((row) => {
-          const cells = row.querySelectorAll('td');
-          if (cells.length >= 6) {
-            regions.push({
-              x1: parseFloat(cells[0].textContent) || 0,
-              x2: parseFloat(cells[1].textContent) || 1,
-              y1: parseFloat(cells[2].textContent) || 0,
-              y2: parseFloat(cells[3].textContent) || 1,
-              weight: parseFloat(cells[4].textContent) || 1,
-              prompt: cells[5].textContent || ''
-            });
-          }
-        });
-
-        return regions;
-      } catch (error) {
-        return [];
-      }
-    }
+    // Removed getRegions - fallback dataframe reading no longer needed with unified sync
 
     /**
      * Check if ForgeCouple is in Advanced mode
@@ -565,7 +559,9 @@
     isAdvancedMode() {
       try {
         const accordion = document.querySelector(`#forge_couple_${this.mode}`);
-        if (!accordion) return false;
+        if (!accordion) {
+          return false;
+        }
 
         const modeRadio = accordion.querySelector('input[type="radio"][value="Advanced"]:checked');
         return !!modeRadio;

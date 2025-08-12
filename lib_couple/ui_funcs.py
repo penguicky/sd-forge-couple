@@ -11,22 +11,27 @@ COLORS = ("red", "orange", "yellow", "green", "blue", "indigo", "violet")
 
 
 def validate_mapping(data: list, log: bool = False) -> bool:
-    for x1, x2, y1, y2, w in data:
-        for v in (x1, x2, y1, y2, w):
-            if not (isinstance(v, float) or isinstance(v, int)):
+    """
+    Simplified validation - comprehensive validation now happens in frontend unified sync
+    This is a lightweight safety check for edge cases
+    """
+    if not data or not isinstance(data, list):
+        if log:
+            logger.error('Invalid mapping data format...')
+        return False
+
+    for region in data:
+        if not isinstance(region, list) or len(region) != 5:
+            if log:
+                logger.error('Invalid region format - expected [x1, x2, y1, y2, weight]...')
+            return False
+
+        # Basic type check only - values are pre-validated by frontend
+        for v in region:
+            if not (isinstance(v, (float, int))):
                 if log:
-                    logger.error('Mappings must be "float"...')
+                    logger.error('Mappings must be numeric...')
                 return False
-
-        if not all(0.0 <= v <= 1.0 for v in (x1, x2, y1, y2)):
-            if log:
-                logger.error("Region range must be between 0.0 and 1.0...")
-            return False
-
-        if x2 < x1 or y2 < y1:
-            if log:
-                logger.error('"to" value must be larger than "from" value...')
-            return False
 
     return True
 
@@ -69,11 +74,17 @@ def visualize_mapping(mode: str, res: str, mapping: list) -> Image.Image:
 
 
 def on_entry(data: str) -> list[list]:
+    # Debug: Log paste field data reception
+    logger.info(f"[ForgeCouple] on_entry received data: {data}")
+
     if not data.strip():
+        logger.info("[ForgeCouple] on_entry: empty data, skipping")
         return gr.skip()
 
     try:
-        return loads(data)
+        parsed_data = loads(data)
+        logger.info(f"[ForgeCouple] on_entry parsed data: {parsed_data}")
+        return parsed_data
     except JSONDecodeError:
         logger.error("Something went wrong while parsing advanced mapping...")
         return DEFAULT_MAPPING

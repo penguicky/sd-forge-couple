@@ -23,7 +23,48 @@
       this.autoUpdateEnabled = true; // Default to enabled
       this.autoUpdateBtn = null;
 
+      // Memory management tracking
+      this.eventListeners = new Set();
+      this.observers = new Set();
+      this.timers = new Set();
+      this.animationFrames = new Set();
+      this.createdAt = Date.now();
+      this.isDestroyed = false;
+
+      // Auto-cleanup on host element removal
+      this.setupAutoCleanup();
+
       this.init();
+    }
+
+    /**
+     * Setup automatic cleanup when host element is removed from DOM
+     */
+    setupAutoCleanup() {
+      // Use MutationObserver to detect when host element is removed
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.type === 'childList') {
+            mutation.removedNodes.forEach((node) => {
+              if (node === this.hostElement || (node.contains && node.contains(this.hostElement))) {
+                this.destroy();
+              }
+            });
+          }
+        });
+      });
+
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+
+      this.observers.add(observer);
+
+      // Also setup cleanup on page unload
+      const unloadHandler = () => this.destroy();
+      window.addEventListener('beforeunload', unloadHandler);
+      this.eventListeners.add(() => window.removeEventListener('beforeunload', unloadHandler));
     }
 
     async init() {
@@ -44,7 +85,7 @@
         this.setupCommunicationBridges();
       } catch (error) {
         console.error(
-          `[ForgeCouple] Failed to initialize shadow container:`,
+          `[ForgeCouple] Failed to initialize shadow container for ${this.mode}:`,
           error
         );
       }
@@ -608,14 +649,18 @@
     }
 
     initializeForgeCouple() {
-      // Initialize the forge-couple instance within shadow DOM
-      this.forgeCoupleInstance = new ShadowForgeCouple(
-        this.shadowRoot,
-        this.mode
-      );
+      try {
+        // Initialize the forge-couple instance within shadow DOM
+        this.forgeCoupleInstance = new ShadowForgeCouple(
+          this.shadowRoot,
+          this.mode
+        );
 
-      // Set up event listeners for UI interactions
-      this.setupUIEventListeners();
+        // Set up event listeners for UI interactions
+        this.setupUIEventListeners();
+      } catch (error) {
+        console.error(`[ForgeCouple] Failed to initialize forge couple for ${this.mode}:`, error);
+      }
     }
 
     setupUIEventListeners() {
@@ -790,18 +835,128 @@
       }
     }
 
-    destroy() {
-      // Clean up resources
-      this.resourceManager.cleanup();
+    /**
+     * Enhanced event listener with automatic cleanup tracking
+     */
+    addEventListener(element, event, handler, options = {}) {
+      element.addEventListener(event, handler, options);
 
+      const cleanup = () => element.removeEventListener(event, handler, options);
+      this.eventListeners.add(cleanup);
+
+      return cleanup;
+    }
+
+    /**
+     * Enhanced setTimeout with automatic cleanup tracking
+     */
+    setTimeout(callback, delay) {
+      const timerId = setTimeout(() => {
+        this.timers.delete(timerId);
+        callback();
+      }, delay);
+
+      this.timers.add(timerId);
+      return timerId;
+    }
+
+    /**
+     * Enhanced setInterval with automatic cleanup tracking
+     */
+    setInterval(callback, interval) {
+      const intervalId = setInterval(callback, interval);
+      this.timers.add(intervalId);
+      return intervalId;
+    }
+
+    /**
+     * Enhanced requestAnimationFrame with automatic cleanup tracking
+     */
+    requestAnimationFrame(callback) {
+      const frameId = requestAnimationFrame(() => {
+        this.animationFrames.delete(frameId);
+        callback();
+      });
+
+      this.animationFrames.add(frameId);
+      return frameId;
+    }
+
+    /**
+     * Track MutationObserver for cleanup
+     */
+    trackObserver(observer) {
+      this.observers.add(observer);
+      return observer;
+    }
+
+    destroy() {
+      if (this.isDestroyed) return; // Prevent double cleanup
+      this.isDestroyed = true;
+
+      // Clean up all tracked event listeners
+      this.eventListeners.forEach(cleanup => {
+        try {
+          cleanup();
+        } catch (e) {
+          console.warn('[ShadowContainer] Event listener cleanup error:', e);
+        }
+      });
+      this.eventListeners.clear();
+
+      // Disconnect all observers
+      this.observers.forEach(observer => {
+        try {
+          observer.disconnect();
+        } catch (e) {
+          console.warn('[ShadowContainer] Observer cleanup error:', e);
+        }
+      });
+      this.observers.clear();
+
+      // Clear all timers
+      this.timers.forEach(timerId => {
+        try {
+          clearTimeout(timerId);
+          clearInterval(timerId);
+        } catch (e) {
+          console.warn('[ShadowContainer] Timer cleanup error:', e);
+        }
+      });
+      this.timers.clear();
+
+      // Cancel all animation frames
+      this.animationFrames.forEach(frameId => {
+        try {
+          cancelAnimationFrame(frameId);
+        } catch (e) {
+          console.warn('[ShadowContainer] Animation frame cleanup error:', e);
+        }
+      });
+      this.animationFrames.clear();
+
+      // Clean up resources
+      if (this.resourceManager) {
+        this.resourceManager.cleanup();
+      }
+
+      // Clean up forge couple instance
       if (this.forgeCoupleInstance) {
         this.forgeCoupleInstance.destroy();
+        this.forgeCoupleInstance = null;
       }
 
-      // Remove shadow root
+      // Clear shadow root content first, then remove
       if (this.shadowRoot) {
-        this.hostElement.removeChild(this.shadowRoot);
+        this.shadowRoot.innerHTML = '';
+        // Note: Don't remove shadowRoot from hostElement as it's not a child
+        this.shadowRoot = null;
       }
+
+      // Clear references
+      this.eventBridge = null;
+      this.hostElement = null;
+      this.autoUpdateBtn = null;
     }
   }
 

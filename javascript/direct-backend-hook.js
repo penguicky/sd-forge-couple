@@ -13,9 +13,9 @@
     
     class ForgeCoupleDirectBackendHook {
         constructor() {
+            this.version = "1.5.2";
             this.originalFetch = window.fetch;
             this.setupFetchInterceptor();
-            console.log('[ForgeCoupleDirectBackendHook] Initialized');
         }
         
         setupFetchInterceptor() {
@@ -86,9 +86,7 @@
 
                     options.body = JSON.stringify(requestData);
 
-                    console.log(`[ForgeCoupleDirectBackendHook] Injected mapping data for ${mode}:`, mappingData);
-                } else {
-                    console.warn(`[ForgeCoupleDirectBackendHook] No mapping data available for ${mode}, using defaults`);
+
                 }
 
             } catch (error) {
@@ -123,13 +121,13 @@
             if (window.ForgeCoupleDirectMapping && window.ForgeCoupleDirectMapping[mode]) {
                 return window.ForgeCoupleDirectMapping[mode];
             }
-            
+
             // Fallback: try to get from ForgeCouple dataframe
             if (window.ForgeCouple && window.ForgeCouple.dataframe && window.ForgeCouple.dataframe[mode]) {
                 const dataframe = window.ForgeCouple.dataframe[mode];
                 const rows = dataframe.body.querySelectorAll('tr');
                 const mappingData = [];
-                
+
                 rows.forEach(row => {
                     const cells = row.querySelectorAll('td');
                     if (cells.length >= 5) {
@@ -142,10 +140,10 @@
                         ]);
                     }
                 });
-                
+
                 return mappingData;
             }
-            
+
             return null;
         }
         
@@ -278,8 +276,6 @@
                             ]);
                             requestData.data[70] = mappingArray;
                         }
-
-                        console.log(`[ForgeCoupleDirectBackendHook] Updated Data[70] with mapping:`, requestData.data[70]);
                     }
                 }
             }
