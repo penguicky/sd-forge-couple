@@ -75,7 +75,7 @@
         "#91001bff",
       ];
 
-      // Direct interface replaced by unified sync system
+
 
       this.init();
     }
@@ -619,9 +619,7 @@
       });
     }
 
-    // Removed redundant setupGenerationObserver - button click hook is sufficient
 
-    // Removed redundant hookFormSubmissions - backend hook handles API interception
 
     findMappingComponent() {
       try {

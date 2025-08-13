@@ -305,22 +305,13 @@
     // Fallback: search for any .fc_adv elements if standard selectors fail
     if (!t2iContainer || !i2iContainer) {
       const allAdvElements = document.querySelectorAll(".fc_adv");
-      console.log(`[ShadowDOMLoader] Standard selectors failed, found ${allAdvElements.length} .fc_adv elements`);
 
       allAdvElements.forEach((el, i) => {
-        const parentId = el.parentElement?.id || '';
-        const elementId = el.id || '';
-        const isVisible = el.offsetWidth > 0 && el.offsetHeight > 0;
-
-        console.log(`[ShadowDOMLoader] .fc_adv[${i}]: ${elementId} (parent: ${parentId}, visible: ${isVisible})`);
-
         // Assign based on order if we can't determine from IDs
         if (!t2iContainer && i === 0) {
           t2iContainer = el;
-          console.log(`[ShadowDOMLoader] Assigned t2i container: ${elementId || 'element-' + i}`);
         } else if (!i2iContainer && i === 1) {
           i2iContainer = el;
-          console.log(`[ShadowDOMLoader] Assigned i2i container: ${elementId || 'element-' + i}`);
         }
       });
     }
@@ -515,12 +506,10 @@
         // Register with global paste bridge if available
         if (window.forgeCoupleGlobalPasteBridge) {
           window.forgeCoupleGlobalPasteBridge.registerShadowContainer(mode, shadowContainer);
-          console.log(`[ShadowDOMLoader] Registered shadow container with global paste bridge for ${mode}`);
         }
 
         // Check for early paste data and apply it
         if (window._forgeCoupleEarlyPasteData && window._forgeCoupleEarlyPasteData[mode]) {
-          console.log(`[ShadowDOMLoader] Applying early paste data to newly created shadow container for ${mode}`);
           setTimeout(() => {
             if (window.ForgeCouple && window.ForgeCouple.onPaste) {
               window.ForgeCouple.onPaste(mode);
@@ -673,7 +662,6 @@
 
         // Additional initialization attempt after a delay (for timing issues)
         setTimeout(() => {
-          console.log('[ShadowDOMLoader] Secondary initialization attempt...');
           replaceForgeCoupleAdvancedMode();
         }, 2000);
 

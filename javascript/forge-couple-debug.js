@@ -24,7 +24,7 @@
             this.performanceMarkers = new Map();
             this.initializationSteps = [];
             
-            console.log('[ForgeCoupleDebug] Debug utility initialized');
+            // Debug utility initialized silently
         }
         
         /**
@@ -318,6 +318,6 @@
         report: () => debugInstance.generateReport()
     };
     
-    console.log('[ForgeCoupleDebug] Debug utility loaded. Use fcDebug.enable() to start logging.');
+    // Debug utility loaded. Use fcDebug.enable() to start logging.
     
 })();

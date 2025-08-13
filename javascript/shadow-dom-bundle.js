@@ -130,16 +130,10 @@
     }
 
     on(eventType, handler, options = {}) {
-      const wrappedHandler = (event) => {
-        if (this.debugMode) {
-        }
-        handler(event);
-      };
-
-      this.addEventListener(eventType, wrappedHandler, options);
+      this.addEventListener(eventType, handler, options);
 
       return () => {
-        this.removeEventListener(eventType, wrappedHandler);
+        this.removeEventListener(eventType, handler);
       };
     }
 
@@ -550,7 +544,7 @@
 
 
 
-    // Removed getRegions - fallback dataframe reading no longer needed with unified sync
+
 
     /**
      * Check if ForgeCouple is in Advanced mode
