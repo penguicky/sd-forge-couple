@@ -94,8 +94,6 @@
       this.setupPromptWatcher();
       this.setupBackendIntegration();
       this.setupAutoImageUpdate();
-      this.setupStateManager();
-      this.setupDebugLogging();
       this.initializeDefaultRegions();
     }
 
@@ -716,7 +714,7 @@
     }
 
     /**
-     * Sync regions to backend using state manager
+     * Sync regions to backend using direct interface
      */
     syncToBackend() {
       // Only sync when in Advanced mode

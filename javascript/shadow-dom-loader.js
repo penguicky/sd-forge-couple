@@ -151,8 +151,6 @@
       "ResourceManager",
       "EventBridge",
       "BackendBridge",
-      "ForgeCoupleDebug",
-      "ForgeCoupleStateManager",
       "ShadowForgeCouple",
       "ForgeCoupleAdvancedShadowContainer",
       "ForgeCoupleDirectInterface",
@@ -168,27 +166,12 @@
       throw new Error(`Missing required classes: ${missingClasses.join(", ")}`);
     }
 
-    // Initialize debug utility first
-    const debugUtil = window.ForgeCoupleDebug.getInstance();
-    debugUtil.setEnabled(false); // Set to true for debugging
-    debugUtil.trackInitialization('debug-utility', true);
-
     // Initialize global event bridge
     const eventBridge = window.EventBridge.getInstance();
     eventBridge.setDebugMode(false); // Set to true for debugging
-    debugUtil.trackInitialization('event-bridge', true);
-
-    // Initialize state manager
-    const stateManager = window.ForgeCoupleStateManager.getInstance();
-    stateManager.setDebugMode(false); // Set to true for debugging
-    debugUtil.trackInitialization('state-manager', true);
 
     // Initialize backend bridge
     window.forgeCoupleBackendBridge = new BackendBridge();
-    debugUtil.trackInitialization('backend-bridge', true);
-
-    console.log('[ShadowDOMLoader] All components initialized successfully');
-    debugUtil.log('info', 'All components initialized successfully', null, 'loader');
   }
 
   /**
@@ -315,9 +298,32 @@
       i2i: null,
     };
 
-    // Look for forge-couple containers in advanced mode
-    const t2iContainer = document.querySelector("#forge_couple_t2i .fc_adv");
-    const i2iContainer = document.querySelector("#forge_couple_i2i .fc_adv");
+    // Look for forge-couple containers in advanced mode (including hidden ones)
+    let t2iContainer = document.querySelector("#forge_couple_t2i .fc_adv");
+    let i2iContainer = document.querySelector("#forge_couple_i2i .fc_adv");
+
+    // Fallback: search for any .fc_adv elements if standard selectors fail
+    if (!t2iContainer || !i2iContainer) {
+      const allAdvElements = document.querySelectorAll(".fc_adv");
+      console.log(`[ShadowDOMLoader] Standard selectors failed, found ${allAdvElements.length} .fc_adv elements`);
+
+      allAdvElements.forEach((el, i) => {
+        const parentId = el.parentElement?.id || '';
+        const elementId = el.id || '';
+        const isVisible = el.offsetWidth > 0 && el.offsetHeight > 0;
+
+        console.log(`[ShadowDOMLoader] .fc_adv[${i}]: ${elementId} (parent: ${parentId}, visible: ${isVisible})`);
+
+        // Assign based on order if we can't determine from IDs
+        if (!t2iContainer && i === 0) {
+          t2iContainer = el;
+          console.log(`[ShadowDOMLoader] Assigned t2i container: ${elementId || 'element-' + i}`);
+        } else if (!i2iContainer && i === 1) {
+          i2iContainer = el;
+          console.log(`[ShadowDOMLoader] Assigned i2i container: ${elementId || 'element-' + i}`);
+        }
+      });
+    }
 
     if (t2iContainer) {
       containers.t2i = t2iContainer;
@@ -642,55 +648,34 @@
     }
 
     loadPromise = (async () => {
-      const debugUtil = window.ForgeCoupleDebug?.getInstance();
-      debugUtil?.startPerformanceTracking('initialization');
-
       try {
-        debugUtil?.log('info', 'Starting initialization process', null, 'loader');
-
         // Wait for lobe-theme to be fully loaded
-        debugUtil?.addPerformanceStep('initialization', 'waiting-for-lobe-theme');
         const lobeThemeActive = await waitForLobeTheme();
 
         if (!lobeThemeActive) {
-          debugUtil?.trackInitialization('lobe-theme-detection', false, 'Lobe theme not active');
           return false;
         }
-        debugUtil?.trackInitialization('lobe-theme-detection', true);
 
         // Load all required scripts
-        debugUtil?.addPerformanceStep('initialization', 'loading-scripts');
         await loadAllScripts();
-        debugUtil?.trackInitialization('script-loading', true);
 
         // Initialize Shadow DOM components
-        debugUtil?.addPerformanceStep('initialization', 'initializing-components');
         initializeShadowDOM();
-        debugUtil?.trackInitialization('component-initialization', true);
 
         // Wait a bit more for DOM to be fully ready
-        debugUtil?.addPerformanceStep('initialization', 'waiting-for-dom');
         await new Promise((resolve) => setTimeout(resolve, 500));
 
         // Replace existing forge-couple advanced mode
-        debugUtil?.addPerformanceStep('initialization', 'replacing-advanced-mode');
         replaceForgeCoupleAdvancedMode();
-        debugUtil?.trackInitialization('advanced-mode-replacement', true);
-
-        // Verify initialization was successful
-        debugUtil?.addPerformanceStep('initialization', 'verifying-initialization');
-        const verificationResult = await verifyInitialization();
-        if (!verificationResult.success) {
-          console.error('[ShadowDOMLoader] Initialization verification failed:', verificationResult.errors);
-          debugUtil?.trackInitialization('initialization-verification', false, verificationResult.errors);
-          throw new Error('Initialization verification failed');
-        }
-        debugUtil?.trackInitialization('initialization-verification', true);
 
         // Set up observers for dynamic content
-        debugUtil?.addPerformanceStep('initialization', 'setting-up-observers');
         setupObservers();
-        debugUtil?.trackInitialization('observer-setup', true);
+
+        // Additional initialization attempt after a delay (for timing issues)
+        setTimeout(() => {
+          console.log('[ShadowDOMLoader] Secondary initialization attempt...');
+          replaceForgeCoupleAdvancedMode();
+        }, 2000);
 
         isLoaded = true;
 
@@ -699,118 +684,16 @@
         eventBridge.emit("shadow-dom:initialized", {
           timestamp: Date.now(),
           lobeThemeActive: true,
-          verificationResult: verificationResult
         });
-
-        const perfResult = debugUtil?.endPerformanceTracking('initialization');
-        console.log('[ShadowDOMLoader] Initialization completed successfully');
-        debugUtil?.log('info', 'Initialization completed successfully', { performance: perfResult }, 'loader');
-        debugUtil?.takeStateSnapshot('initialization-complete');
 
         return true;
       } catch (error) {
         console.error("[ShadowDOMLoader] Initialization failed:", error);
-        debugUtil?.trackInitialization('initialization-complete', false, error.message);
-        debugUtil?.log('error', 'Initialization failed', { error: error.message, stack: error.stack }, 'loader');
-        debugUtil?.endPerformanceTracking('initialization');
-        debugUtil?.takeStateSnapshot('initialization-failed');
-        return false;
+        throw error;
       }
     })();
 
     return loadPromise;
-  }
-
-  /**
-   * Verify that all components are properly initialized
-   * @returns {Object} Verification result with success status and any errors
-   */
-  async function verifyInitialization() {
-    const errors = [];
-    const checks = [];
-
-    // Check 1: ForgeCouple global object
-    checks.push({
-      name: 'ForgeCouple global object',
-      check: () => window.ForgeCouple &&
-                   window.ForgeCouple.dataframe &&
-                   window.ForgeCouple.dataframe.t2i &&
-                   window.ForgeCouple.dataframe.i2i
-    });
-
-    // Check 2: State manager
-    checks.push({
-      name: 'State manager',
-      check: () => window.ForgeCoupleStateManager &&
-                   window.ForgeCoupleStateManager.getInstance()
-    });
-
-    // Check 3: Direct mapping storage
-    checks.push({
-      name: 'Direct mapping storage',
-      check: () => window.ForgeCoupleDirectMapping !== undefined
-    });
-
-    // Check 4: Shadow DOM containers
-    checks.push({
-      name: 'Shadow DOM containers',
-      check: () => document.querySelectorAll('.forge-couple-shadow-host').length > 0
-    });
-
-    // Check 5: Event bridge
-    checks.push({
-      name: 'Event bridge',
-      check: () => window.EventBridge && window.EventBridge.getInstance()
-    });
-
-    // Run all checks
-    for (const checkItem of checks) {
-      try {
-        if (!checkItem.check()) {
-          errors.push(`${checkItem.name} verification failed`);
-        }
-      } catch (error) {
-        errors.push(`${checkItem.name} verification error: ${error.message}`);
-      }
-    }
-
-    // Additional async checks with retry
-    const asyncChecks = [
-      {
-        name: 'ForgeCouple dataframe readiness',
-        check: async () => {
-          for (let i = 0; i < 5; i++) {
-            if (window.ForgeCouple?.dataframe?.t2i?.body &&
-                window.ForgeCouple?.dataframe?.i2i?.body) {
-              return true;
-            }
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-          return false;
-        }
-      }
-    ];
-
-    for (const asyncCheck of asyncChecks) {
-      try {
-        const result = await asyncCheck.check();
-        if (!result) {
-          errors.push(`${asyncCheck.name} verification failed`);
-        }
-      } catch (error) {
-        errors.push(`${asyncCheck.name} verification error: ${error.message}`);
-      }
-    }
-
-    const success = errors.length === 0;
-
-    if (success) {
-      console.log('[ShadowDOMLoader] All verification checks passed');
-    } else {
-      console.error('[ShadowDOMLoader] Verification failed with errors:', errors);
-    }
-
-    return { success, errors };
   }
 
   // Auto-initialize with multiple timing strategies

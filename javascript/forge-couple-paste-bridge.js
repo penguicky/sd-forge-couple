@@ -20,7 +20,6 @@
                 this.scanAndInterceptPasteButtons();
                 this.setupMutationObserver();
 
-                // Check if we found any buttons, if not retry
                 const buttons = document.querySelectorAll('button');
                 let pasteButtons = 0;
                 buttons.forEach(button => {
@@ -69,12 +68,12 @@
             button._forgeCoupleIntercepted = true;
             const bridgeRef = this;
 
-            button.addEventListener('click', (event) => {
-                bridgeRef.handlePasteButtonClick(button);
+            button.addEventListener('click', () => {
+                bridgeRef.handlePasteButtonClick();
             });
         },
 
-        handlePasteButtonClick(button) {
+        handlePasteButtonClick() {
             const bridgeRef = this;
             setTimeout(() => {
                 const textareas = document.querySelectorAll('textarea');
@@ -103,14 +102,18 @@
                 if (jsonData.extra_generation_params && jsonData.extra_generation_params.forge_couple_mapping) {
                     return JSON.parse(jsonData.extra_generation_params.forge_couple_mapping);
                 }
-            } catch (error) {}
+            } catch (error) {
+                // Not JSON, continue
+            }
 
             // Parameter format (PNG Info)
             const quotedMatch = text.match(/forge_couple_mapping: "([^"]+)"/);
             if (quotedMatch) {
                 try {
                     return JSON.parse(quotedMatch[1]);
-                } catch (error) {}
+                } catch (error) {
+                    // Continue to next format
+                }
             }
 
             // Legacy format
@@ -122,7 +125,9 @@
                         if (parts.length >= 2) {
                             return JSON.parse(parts[1].trim());
                         }
-                    } catch (error) {}
+                    } catch (error) {
+                        // Continue to next line
+                    }
                 }
             }
 
